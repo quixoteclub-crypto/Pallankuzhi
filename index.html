@@ -96,10 +96,17 @@
           true
         );
       } else {
-        // Running in a web browser (including GitHub Pages) — use reCAPTCHA v3
+        // Web: use debug token during development (same as native)
+        // TODO: Replace with proper reCAPTCHA site key once registered for all domains
         firebase.appCheck().activate(
-          '6LcxZe0sAAAAA3ZxVE36t55y8KzlaDl48s6F9ML',
-          true // auto-refresh tokens silently
+          new firebase.appCheck.CustomProvider({
+            getToken: function() {
+              return Promise.resolve({
+                token: 'E906B3E9-2026-4F49-A302-9AAE531693BA'
+              });
+            }
+          }),
+          true
         );
       }
     })();
