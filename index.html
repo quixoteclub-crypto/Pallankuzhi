@@ -108,6 +108,7 @@
     window._fbuser = null;
     window._fbRedirectDone = false;
     // Fix: Handle redirect sign-in result on page load (required for mobile/redirect flow)
+    window._fbauth.useDeviceLanguage();
     window._fbauth.getRedirectResult().then(function(result) {
       if (result && result.user) {
         window._fbRedirectDone = true;
@@ -1699,7 +1700,11 @@ function Pallankuzhi() {
     // Fix: use redirect on mobile (popup gets blocked by Chrome on Android)
     // authLoading is cleared by _onAuthChange on return; add timeout as safety net
     if (isNative || isMobile) {
-      window._fbauth.signInWithRedirect(provider);
+      window._fbauth.signInWithRedirect(provider).catch(function(err){
+          console.error("signInWithRedirect error:", err.code, err.message);
+          alert("Sign-in error: " + err.code + " - " + err.message);
+          setAuthLoading(false);
+        });
       setTimeout(()=>setAuthLoading(false), 10000); // safety: unblock after 10s if redirect fails
     } else {
       window._fbauth.signInWithPopup(provider)
@@ -2770,7 +2775,11 @@ function Pallankuzhi() {
                     provider.addScope('email');
                     provider.addScope('profile');
                     // Always use redirect — works on both mobile Chrome and Capacitor WebView
-                    window._fbauth.signInWithRedirect(provider);
+                    window._fbauth.signInWithRedirect(provider).catch(function(err){
+          console.error("signInWithRedirect error:", err.code, err.message);
+          alert("Sign-in error: " + err.code + " - " + err.message);
+          setAuthLoading(false);
+        });
                   }}
                   disabled={authLoading}
                   style={{
