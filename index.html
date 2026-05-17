@@ -39,6 +39,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #0a0300; }
@@ -102,6 +103,33 @@
       }
     })();
     window._fbdb = firebase.database();
+    window._fbauth = firebase.auth();
+    window._fbuser = null;
+    window._fbauth.onAuthStateChanged(function(user) {
+      window._fbuser = user;
+      if (user) {
+        // Save/update user profile in database
+        window._fbdb.ref('users/' + user.uid).once('value').then(function(snap) {
+          if (!snap.exists()) {
+            window._fbdb.ref('users/' + user.uid).set({
+              name: user.displayName,
+              photo: user.photoURL,
+              wins: 0,
+              losses: 0,
+              draws: 0,
+              coins: 0,
+              xp: 0,              winStreak: 0,
+              bestStreak: 0,
+              lastLoginDate: '',
+              loginStreak: 0,
+              createdAt: Date.now()
+            });
+          }
+        });
+      }
+      // Notify React
+      if (window._onAuthChange) window._onAuthChange(user);
+    });
   </script>
 </head>
 <body>
@@ -1508,6 +1536,214 @@ function Pallankuzhi() {
   const [orient, setOrient] = useState(null); // null=auto, "portrait", "landscape"
   const [muteAudio, setMuteAudio] = useState(false);
   const [aiDifficulty, setAiDifficulty] = useState("hard"); // "easy" | "hard"
+  const [fbUser, setFbUser] = useState(window._fbuser || null);
+  const [userStats, setUserStats] = useState({wins:0,losses:0,draws:0});
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showInGameProfile, setShowInGameProfile] = useState(false);
+
+  // ── COINS & XP ──
+  const [coins, setCoins] = useState(0);
+  const [xp, setXp] = useState(0);
+  const [coinFlash, setCoinFlash] = useState(false);
+
+  // ── WIN STREAK ──
+  const [winStreak, setWinStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [streakBonus, setStreakBonus] = useState(null); // {streak, bonus} shown briefly after a win
+
+  // ── DAILY LOGIN BONUS ──
+  const [loginStreak, setLoginStreak] = useState(0);
+  const [showDailyModal, setShowDailyModal] = useState(false);
+  const [dailyReward, setDailyReward] = useState(null); // {coins, day, loginStreak}
+
+  // ── TURN TIMER ──
+  const [timerSeconds, setTimerSeconds] = useState(30);
+  const [timerActive, setTimerActive] = useState(false);
+  const timerIntervalRef = useRef(null);
+  const timerSecondsRef = useRef(30);
+
+  // ── LEADERBOARD ──
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+
+  // ── EMOJI REACTIONS ──
+  const [floatingEmojis, setFloatingEmojis] = useState([]);
+  const _emojiId = useRef(0);
+
+  // ── XP LEVEL SYSTEM ──
+  // Level thresholds: level N requires XP_FOR_LEVEL[N-1] total XP
+  const XP_FOR_LEVEL = Array.from({length:50},(_,i)=>Math.floor(100*Math.pow(1.18,i)));
+  const getTotalXpForLevel = (lvl) => XP_FOR_LEVEL.slice(0,lvl-1).reduce((a,b)=>a+b,0);
+  const getLevelFromXp = (totalXp) => {
+    let lvl=1, acc=0;
+    for(let i=0;i<50;i++){
+      if(totalXp<acc+XP_FOR_LEVEL[i]) return lvl;
+      acc+=XP_FOR_LEVEL[i]; lvl++;
+    }
+    return 50;
+  };
+  const LEVEL_MILESTONES = {
+    5:  {type:"theme", key:"ember",  desc:"Ember board theme unlocked!"},
+    10: {type:"coinBonus", pct:10,   desc:"+10% coin bonus on every win!"},
+    15: {type:"badge", key:"golden", desc:"Golden avatar frame unlocked!"},
+    20: {type:"theme", key:"royal",  desc:"Royal board theme unlocked free!"},
+    25: {type:"coinBonus", pct:20,   desc:"+20% coin bonus stacks with Lv10!"},
+    50: {type:"title", key:"master", desc:"Master title on leaderboard!"},
+  };
+  const [level, setLevel] = useState(1);
+  const [showLevelUp, setShowLevelUp] = useState(null); // {newLevel, milestone}
+
+  // ── BOARD THEMES ──
+  const THEMES = {
+    classic:  { name:"Classic",  bg:"linear-gradient(145deg,#8a3e0a 0%,#4e1e04 18%,#2e0e00 40%,#4a1c04 58%,#7e3608 76%,#3c1602 90%,#6a2e06 100%)", inner:"linear-gradient(160deg,#6e2e06 0%,#4a1a02 30%,#300e00 60%,#4e2004 100%)", accent:"#c8a040", unlocked:true },
+    midnight: { name:"Midnight", bg:"linear-gradient(145deg,#0a0a2e 0%,#04041a 18%,#020214 40%,#080830 58%,#0c0c38 76%,#040420 90%,#060628 100%)", inner:"linear-gradient(160deg,#0c0c3a 0%,#06061e 30%,#020212 60%,#080828 100%)", accent:"#6080ff", unlocked:true },
+    forest:   { name:"Forest",   bg:"linear-gradient(145deg,#1a3a0a 0%,#0a2004 18%,#04140a 40%,#0c2808 58%,#163210 76%,#081c04 90%,#122a08 100%)", inner:"linear-gradient(160deg,#143008 0%,#081804 30%,#040e02 60%,#0a2006 100%)", accent:"#40c060", unlocked:true },
+    royal:    { name:"Royal",    bg:"linear-gradient(145deg,#3a0a3a 0%,#1e041e 18%,#140014 40%,#2a082a 58%,#380838 76%,#1c041c 90%,#2c082c 100%)", inner:"linear-gradient(160deg,#320832 0%,#1c041c 30%,#100010 60%,#240824 100%)", accent:"#e040e0", unlocked:(coins>=200) },
+  };
+  const [boardTheme, setBoardTheme] = useState("classic");
+  const [showThemePicker, setShowThemePicker] = useState(false);
+
+  useEffect(()=>{
+    window._onAuthChange = (user) => {
+      setFbUser(user);
+      if(user) {
+        window._fbdb.ref('users/'+user.uid).on('value', snap=>{
+          if(snap.exists()) {
+            const d = snap.val();
+            setUserStats(d);
+            setCoins(d.coins||0);
+            setXp(d.xp||0);
+            setWinStreak(d.winStreak||0);
+            setBestStreak(d.bestStreak||0);
+            setLoginStreak(d.loginStreak||0);
+            setLevel(getLevelFromXp(d.xp||0));
+          }
+        });
+        // Daily login bonus check — runs once on sign-in
+        const todayStr = new Date().toISOString().slice(0,10); // "YYYY-MM-DD"
+        window._fbdb.ref('users/'+user.uid+'/lastLoginDate').once('value', snap=>{
+          const last = snap.val()||'';
+          if(last === todayStr) return; // already claimed today
+          // Calculate yesterday string
+          const yest = new Date(Date.now()-86400000).toISOString().slice(0,10);
+          window._fbdb.ref('users/'+user.uid+'/loginStreak').once('value', sSnap=>{
+            const curStreak = sSnap.val()||0;
+            const newStreak = last===yest ? curStreak+1 : 1; // consecutive or reset to 1
+            // Reward: day 1=25, 2=30, 3=40, 4=50, 5=65, 6=80, 7=100, then repeats from 50
+            const DAY_REWARDS = [25,30,40,50,65,80,100];
+            const reward = DAY_REWARDS[Math.min(newStreak-1,6)];
+            window._fbdb.ref('users/'+user.uid).update({
+              lastLoginDate: todayStr,
+              loginStreak: newStreak,
+              coins: firebase.database.ServerValue.increment(reward),
+            });
+            setDailyReward({coins: reward, day: newStreak});
+            setShowDailyModal(true);
+          });
+        });
+      }
+    };
+    return ()=>{ window._onAuthChange = null; };
+  },[]);
+
+  const signInWithGoogle = ()=>{
+    setAuthLoading(true);
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    const method = isNative
+      ? window._fbauth.signInWithRedirect(provider)
+      : window._fbauth.signInWithPopup(provider);
+    method.catch(()=>setAuthLoading(false)).finally(()=>setAuthLoading(false));
+  };
+
+  const signOut = ()=>{
+    window._fbauth.signOut();
+    setShowProfile(false);
+  };
+
+  // Save result to Firebase after game ends — also award coins, XP, and update win streak
+  useEffect(()=>{
+    if(!result || !fbUser || gameMode==="pvp") return;
+    if(result==="win"||result==="lose"||result==="draw") {
+      const field = result==="win"?"wins":result==="lose"?"losses":"draws";
+      window._fbdb.ref('users/'+fbUser.uid+'/'+field).transaction(v=>(v||0)+1);
+
+      // Base coin/XP reward
+      let coinReward = result==="win"?50:result==="draw"?10:5;
+      const xpReward   = result==="win"?80:result==="draw"?20:10;
+      // Level milestone coin bonus
+      const lvBonus10 = level>=10?0.10:0;
+      const lvBonus25 = level>=25?0.20:0;
+      if(result==="win") coinReward = Math.round(coinReward*(1+lvBonus10+lvBonus25));
+
+      if(result==="win") {
+        // Update win streak
+        window._fbdb.ref('users/'+fbUser.uid).once('value', snap=>{
+          const d = snap.val()||{};
+          const newStreak = (d.winStreak||0)+1;
+          const newBest   = Math.max(newStreak, d.bestStreak||0);
+          // Streak bonus coins: 3-streak=+30, 5-streak=+75, 10-streak=+200
+          let bonus = 0;
+          if(newStreak===3)  bonus=30;
+          else if(newStreak===5)  bonus=75;
+          else if(newStreak===10) bonus=200;
+          else if(newStreak>10 && newStreak%5===0) bonus=100; // every 5 after 10
+          const totalCoins = coinReward+bonus;
+          window._fbdb.ref('users/'+fbUser.uid).update({
+            winStreak: newStreak,
+            bestStreak: newBest,
+            coins: firebase.database.ServerValue.increment(totalCoins),
+            xp:    firebase.database.ServerValue.increment(xpReward),
+          });
+          setWinStreak(newStreak);
+          setBestStreak(newBest);
+          setCoins(c=>c+totalCoins);
+          setXp(x=>{
+            const newXp = x+xpReward;
+            const newLvl = getLevelFromXp(newXp);
+            setLevel(prev=>{
+              if(newLvl>prev){
+                const milestone = LEVEL_MILESTONES[newLvl]||null;
+                setTimeout(()=>setShowLevelUp({newLevel:newLvl, milestone}),1200);
+              }
+              return newLvl;
+            });
+            return newXp;
+          });
+          if(bonus>0) setStreakBonus({streak:newStreak, bonus});
+          else setStreakBonus(null);
+          setCoinFlash(true);
+          setTimeout(()=>setCoinFlash(false), 2000);
+          if(bonus>0) setTimeout(()=>setStreakBonus(null), 3500);
+        });
+      } else {
+        // Loss or draw: reset win streak
+        if(result==="lose") {
+          window._fbdb.ref('users/'+fbUser.uid+'/winStreak').set(0);
+          setWinStreak(0);
+        }
+        window._fbdb.ref('users/'+fbUser.uid+'/coins').transaction(v=>(v||0)+coinReward);
+        window._fbdb.ref('users/'+fbUser.uid+'/xp').transaction(v=>(v||0)+xpReward);
+        setCoins(c=>c+coinReward);
+        setXp(x=>{
+          const newXp = x+xpReward;
+          const newLvl = getLevelFromXp(newXp);
+          setLevel(prev=>{
+            if(newLvl>prev){
+              const milestone = LEVEL_MILESTONES[newLvl]||null;
+              setTimeout(()=>setShowLevelUp({newLevel:newLvl, milestone}),1200);
+            }
+            return newLvl;
+          });
+          return newXp;
+        });
+        setCoinFlash(true);
+        setTimeout(()=>setCoinFlash(false), 2000);
+      }
+    }
+  },[result]);
   const {w: winW, h: winH} = useWindowSize();
   const isDesktop = winW >= 1024;
   const isTablet  = winW >= 768 && winW < 1024;
@@ -1590,11 +1826,11 @@ function Pallankuzhi() {
   };
 
   // ── Send move to opponent + sync resulting board state ──
+  // Fix Bug 3: send sync BEFORE move so guest applies the authoritative board state
+  // before it starts animating — prevents guest animating from a stale/wrong board.
   const sendOnlineMove = useCallback((pit, resultBoard, resultScores)=>{
     if(connRef.current && connRef.current.open){
-      // Send move first so opponent can start animating
-      connRef.current.send({type:"move", pit});
-      // Immediately follow with the resulting board — mover is single source of truth
+      // Send authoritative board state first
       connRef.current.send({
         type:"sync",
         board: resultBoard,
@@ -1602,6 +1838,8 @@ function Pallankuzhi() {
         fcH: [..._fc.current[_FH]],
         fcA: [..._fc.current[_FA]],
       });
+      // Then send move so guest animates from the now-correct state
+      connRef.current.send({type:"move", pit});
     }
   },[]);
 
@@ -1616,6 +1854,10 @@ function Pallankuzhi() {
     conn.on("open",()=>{
       // Clear the room-wait timeout — connection succeeded
       if(roomTimeoutRef.current){clearTimeout(roomTimeoutRef.current);roomTimeoutRef.current=null;}
+      // Fix Bug 4: clean up our own Firebase matchmaking entry now that we're connected.
+      // Guest pushes a "matched" entry when joining — without this it sits in Firebase forever,
+      // slowing future matchmaking queries.
+      _cleanupMatch();
       setOnlineStatus("Connected! Starting game…");
       // Fix: send config immediately inside open — not with a setTimeout guess
       if(role==="host"){
@@ -1648,8 +1890,8 @@ function Pallankuzhi() {
         // Mirror opponent's pit index into our board perspective, then simulate
         _remoteMoveRef.current && _remoteMoveRef.current(_mirror[data.pit]);
       } else if(data.type==="sync"){
-        // Fix desync: mover sends their resulting board — mirror it and write into live refs
-        // so _remoteMoveRef always simulates from the correct state
+        // Fix desync: mover sends their resulting board — mirror it and write into both
+        // live refs (for move logic) AND React state (for display).
         const mirroredBoard = data.board.map((_,i)=>data.board[_mirror[i]]);
         // Mirror forbidden claimants: their player-0 ↔ our player-1
         _fc.current = {
@@ -1658,6 +1900,14 @@ function Pallankuzhi() {
         };
         _boardRef.current  = mirroredBoard;
         _scoresRef.current = data.scores;
+        // Fix Bug 7: only push to React state when NOT animating.
+        // If animation is running, the move message arrives next and _rA will
+        // render the correct board step-by-step. Pushing now would cause a visual
+        // jump to the final state before the animation plays.
+        if(!_br.current){
+          setBoard(mirroredBoard);
+          setScores(data.scores);
+        }
       } else if(data.type==="rematch"){
         // Guest requested rematch — if we are host, restart and send back
         if(onlineRole==="host"){
@@ -1670,11 +1920,18 @@ function Pallankuzhi() {
           _rematchRef.current && _rematchRef.current();
         }
       } else if(data.type==="restart"){
-        // Host is authoritative — reset to the shellCount they specify
+        // Host is authoritative — reset to the shellCount they specify.
+        // Fix Bug 6: explicitly clear result and set turn=0 before reset() fires,
+        // since reset()'s useCallback may have a stale closure on onlineRole/gameMode.
         const sc = data.shellCount || _shellCountRef.current;
         setShellCount(sc);
         _shellCountRef.current = sc;
+        setResult(null);
+        setOver(false);
+        setTurn(0);
         _rematchRef.current && _rematchRef.current();
+      } else if(data.type==="emoji"){
+        if(window._onEmojiReceived) window._onEmojiReceived(data.emoji);
       } else if(data.type==="resign"){
         // Fix #22 + Fix #32: stop any running animation before showing result,
         // otherwise the animation timer fires on top of the win overlay.
@@ -1783,6 +2040,45 @@ function Pallankuzhi() {
     }, 30000);
   },[_wireConn]);
 
+  // ── MATCHMAKING helper: register this peer as a waiting host in Firebase ──
+  // Defined BEFORE startMatchmaking so it's not referenced before initialisation.
+  const _registerAsHost = useCallback((db, peer, peerId, sc)=>{
+    const myRef = db.ref("matchmaking").push({
+      status:"waiting", peerId, shellCount:sc, ts: Date.now()
+    });
+    myMatchId.current = myRef.key;
+    matchRef.current = myRef;
+
+    // Fix #17: onDisconnect ensures Firebase removes this entry instantly if the tab
+    // closes or network drops — prevents ghost "waiting" entries slowing matchmaking.
+    myRef.onDisconnect().remove();
+
+    setOnlineStatus("Waiting for an opponent anywhere in the world…");
+
+    // Listen for incoming PeerJS connection
+    // Capture refs at registration time to avoid stale closure
+    const capturedMatchRef = myRef;
+    const capturedMatchId = myRef.key;
+    peer.on("connection",(conn)=>{
+      // Reject a second connection if one is already active
+      if(connRef.current && connRef.current.open){ conn.close(); return; }
+      // Manually remove this host entry using captured ref (not stale matchRef.current)
+      try { capturedMatchRef.off(); capturedMatchRef.remove(); } catch(e){}
+      if(myMatchId.current === capturedMatchId) myMatchId.current = null;
+      if(matchRef.current === capturedMatchRef) matchRef.current = null;
+      _wireConn(conn,"host",sc);
+      setOnlineStatus("Opponent found! Connecting…");
+    });
+
+    // Auto-cleanup stale entry after 2 minutes
+    setTimeout(()=>{
+      if(myMatchId.current === capturedMatchId){
+        db.ref("matchmaking/"+capturedMatchId).remove();
+        myMatchId.current=null;
+      }
+    }, 120000);
+  },[_wireConn]);
+
   // ── MATCHMAKING: find a random opponent via Firebase ──
   const startMatchmaking = useCallback((sc)=>{
     _cleanupPeer();
@@ -1839,44 +2135,6 @@ function Pallankuzhi() {
         setOnlineStatus("App Check failed — try reloading. ("+err.message+")");
       });
   },[_wireConn, _registerAsHost]);
-
-  // Helper: register this peer as a waiting host in Firebase
-  const _registerAsHost = useCallback((db, peer, peerId, sc)=>{
-    const myRef = db.ref("matchmaking").push({
-      status:"waiting", peerId, shellCount:sc, ts: Date.now()
-    });
-    myMatchId.current = myRef.key;
-    matchRef.current = myRef;
-
-    // Fix #17: onDisconnect ensures Firebase removes this entry instantly if the tab
-    // closes or network drops — prevents ghost "waiting" entries slowing matchmaking.
-    myRef.onDisconnect().remove();
-
-    setOnlineStatus("Waiting for an opponent anywhere in the world…");
-
-    // Listen for incoming PeerJS connection
-    // Capture refs at registration time to avoid stale closure
-    const capturedMatchRef = myRef;
-    const capturedMatchId = myRef.key;
-    peer.on("connection",(conn)=>{
-      // Reject a second connection if one is already active
-      if(connRef.current && connRef.current.open){ conn.close(); return; }
-      // Manually remove this host entry using captured ref (not stale matchRef.current)
-      try { capturedMatchRef.off(); capturedMatchRef.remove(); } catch(e){}
-      if(myMatchId.current === capturedMatchId) myMatchId.current = null;
-      if(matchRef.current === capturedMatchRef) matchRef.current = null;
-      _wireConn(conn,"host",sc);
-      setOnlineStatus("Opponent found! Connecting…");
-    });
-
-    // Auto-cleanup stale entry after 2 minutes
-    setTimeout(()=>{
-      if(myMatchId.current === capturedMatchId){
-        db.ref("matchmaking/"+capturedMatchId).remove();
-        myMatchId.current=null;
-      }
-    }, 120000);
-  },[_wireConn]);
 
 
 
@@ -2141,6 +2399,74 @@ function Pallankuzhi() {
     return ()=>{ _rematchRef.current=null; };
   },[reset]);
 
+  // ── TURN TIMER ──
+  const _stopTimer = useCallback(()=>{
+    if(timerIntervalRef.current){ clearInterval(timerIntervalRef.current); timerIntervalRef.current=null; }
+    setTimerActive(false);
+    setTimerSeconds(30);
+    timerSecondsRef.current = 30;
+  },[]);
+
+  const _startTimer = useCallback(()=>{
+    _stopTimer();
+    setTimerSeconds(30);
+    timerSecondsRef.current = 30;
+    setTimerActive(true);
+    timerIntervalRef.current = setInterval(()=>{
+      timerSecondsRef.current -= 1;
+      setTimerSeconds(timerSecondsRef.current);
+      if(timerSecondsRef.current <= 0){
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+        setTimerActive(false);
+        // Time's up — in online, resign. In AI/PvP, auto-pick best move or skip turn.
+        const gm = gameMode;
+        const t  = _turnRef.current;
+        const b  = _boardRef.current;
+        const s  = _scoresRef.current;
+        const sc = _shellCountRef.current;
+        if(_br.current || _overRef.current) return;
+        if(gm==="online"||gm==="matchmaking"){
+          if(t===0){
+            // Player's turn ran out — treat as forfeit: pick first legal move
+            const capAt2 = sc===6?3:sc===12?6:12;
+            const ms = _lm(b,0);
+            if(ms.length>0){
+              const best = ms[0];
+              const {steps,_cf}=_st(b,best,0,capAt2);
+              if(_cf!==null) _fc.current[_cf].add(0);
+              sendOnlineMove(best, steps[steps.length-1].board, s);
+              _rA(steps,b,s,0,false);
+            }
+          }
+        } else {
+          const capAt2 = sc===6?3:sc===12?6:12;
+          const m = t===1?_aiB(b,capAt2):_aiB(b,capAt2); // auto-pick for the current player
+          if(m!==-1){
+            const {steps,_cf}=_st(b,m,t,capAt2);
+            if(_cf!==null) _fc.current[_cf].add(t);
+            _rA(steps,b,s,t,false);
+          }
+        }
+      }
+    },1000);
+  },[_stopTimer, gameMode, sendOnlineMove]);
+
+  // Start timer when turn changes and game is live
+  useEffect(()=>{
+    if(introStep!==4 || over || busy) return;
+    if(gameMode==="ai"||gameMode==="pvp"||gameMode==="online"||gameMode==="matchmaking"){
+      _startTimer();
+    }
+    return ()=>{ _stopTimer(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[turn, over, introStep, gameMode]);
+
+  // Stop timer while animation is running
+  useEffect(()=>{
+    if(busy){ if(timerIntervalRef.current){ clearInterval(timerIntervalRef.current); timerIntervalRef.current=null; setTimerActive(false); } }
+  },[busy]);
+
   useEffect(()=>{
     // Never run AI if: PvP, online mode, matchmaking mode, OR if onlineRole is set (online game starting up)
     if(gameMode==="pvp"||gameMode==="online"||gameMode==="matchmaking"||onlineRole!==null) return;
@@ -2181,10 +2507,47 @@ function Pallankuzhi() {
     reset();
   },[reset]);
   const _hc=[0,1,2,3,4,5,6];
+
+  // ── LEADERBOARD ──
+  const fetchLeaderboard = useCallback(()=>{
+    setLeaderboardLoading(true);
+    window._fbdb.ref('users').orderByChild('wins').limitToLast(10).once('value',(snap)=>{
+      const entries=[];
+      snap.forEach(child=>{
+        const d=child.val();
+        entries.push({uid:child.key, name:d.name||"Player", wins:d.wins||0, coins:d.coins||0, photo:d.photo||null, xp:d.xp||0});
+      });
+      setLeaderboardData(entries.reverse());
+      setLeaderboardLoading(false);
+    });
+  },[]);
+
+  // ── EMOJI REACTIONS (online only) ──
+  const sendEmoji = useCallback((emoji)=>{
+    if(connRef.current&&connRef.current.open) connRef.current.send({type:"emoji",emoji});
+    // Show locally too
+    const id = _emojiId.current++;
+    setFloatingEmojis(prev=>[...prev,{id,emoji,own:true}]);
+    setTimeout(()=>setFloatingEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
+  },[]);
+
+  // Handle incoming emoji from opponent
+  // Attach to _wireConn data handler — we patch conn.on("data") events for emoji here
+  // via a global hook since _wireConn is called before emoji state is available
+  useEffect(()=>{
+    window._onEmojiReceived = (emoji)=>{
+      const id = _emojiId.current++;
+      setFloatingEmojis(prev=>[...prev,{id,emoji,own:false}]);
+      setTimeout(()=>setFloatingEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
+    };
+    return ()=>{ window._onEmojiReceived=null; };
+  },[]);
   const _ac   =[7,8,9,10,11,12,13];
+  const _theme = THEMES[boardTheme] || THEMES.classic;
+  const _themeAccent = _theme.accent;
   const _mb   = anim.cap!==null?"rgba(255,70,10,0.15)":over?"rgba(200,158,10,0.17)":anim.relay!==null?"rgba(50,200,100,0.1)":"rgba(20,8,0,0.52)";
   const _mbd = anim.cap!==null?"rgba(255,100,40,0.5)":over?"rgba(200,158,10,0.5)":anim.relay!==null?"rgba(50,190,90,0.4)":"rgba(70,32,8,0.5)";
-  const _mc  = anim.cap!==null?"#ff9060":over?"#ffd060":anim.relay!==null?"#70ffaa":"#c89840";
+  const _mc  = anim.cap!==null?"#ff9060":over?"#ffd060":anim.relay!==null?"#70ffaa":_themeAccent;
   return (
     <div
       role="application"
@@ -2226,6 +2589,7 @@ function Pallankuzhi() {
         @keyframes trailFade{0%{opacity:0.5}100%{opacity:0}}
         @keyframes introFadeIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
         @keyframes introPulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+        @keyframes emojiFloat{0%{opacity:1;transform:translateY(0) scale(1)}60%{opacity:1;transform:translateY(-80px) scale(1.2)}100%{opacity:0;transform:translateY(-140px) scale(0.8)}}
         *{box-sizing:border-box;}
         :focus-visible{outline:3px solid #ffe050 !important;outline-offset:3px;}
         .pit-focus-ring{opacity:0;}
@@ -2257,8 +2621,9 @@ function Pallankuzhi() {
             display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",
             padding:"8px 24px",boxSizing:"border-box",
-            gap:16,zIndex:2,
+            gap:20,zIndex:2,
           }}>
+            {/* Title */}
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
               <span style={{
                 fontFamily:"'Noto Sans Tamil',sans-serif",fontSize:38,fontWeight:700,letterSpacing:1,
@@ -2280,30 +2645,121 @@ function Pallankuzhi() {
               lineHeight:1.5,margin:0,textAlign:"center",maxWidth:260,
               fontStyle:"italic",letterSpacing:0.2,
             }}>An ancient Tamil game of sowing, strategy, and capture.</p>
-            <button
-              onClick={(e)=>{e.stopPropagation();sfx.pageNext();setIntroStep(1);}}
+
+            {/* ── 3 ICON BUTTONS ── */}
+            <div
+              onClick={e=>e.stopPropagation()}
               style={{
-                padding:"12px 40px",borderRadius:30,
-                fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:3,textTransform:"uppercase",
-                color:"#c8a040",cursor:"pointer",
-                background:"linear-gradient(135deg,rgba(80,34,4,0.95),rgba(28,10,0,0.98))",
-                border:"1.5px solid rgba(160,90,10,0.7)",
-                boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",
-                transition:"all 0.25s",
+                display:"flex",flexDirection:"row",gap:14,
+                width:"min(340px,90vw)",justifyContent:"center",
+                marginTop:4,
               }}
-              onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";}}
-              onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";}}
-            >How to Play →</button>
-            <button
-              onClick={(e)=>{e.stopPropagation();sfx.skipPlay();setIntroStep(2);}}
-              style={{
-                background:"none",border:"none",cursor:"pointer",
-                fontFamily:"Crimson Text,serif",fontSize:13,color:"#4a2e0a",letterSpacing:1,
-                textDecoration:"underline",textUnderlineOffset:3,marginTop:-8,
-              }}
-              onMouseEnter={e=>e.currentTarget.style.color="#8a5820"}
-              onMouseLeave={e=>e.currentTarget.style.color="#4a2e0a"}
-            >Skip — just play</button>
+            >
+              {/* How to Play */}
+              <button
+                onClick={(e)=>{e.stopPropagation();sfx.pageNext();setIntroStep(1);}}
+                style={{
+                  flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                  padding:"18px 10px",borderRadius:18,cursor:"pointer",
+                  background:"linear-gradient(135deg,rgba(50,22,4,0.97),rgba(20,8,0,0.98))",
+                  border:"1.5px solid rgba(160,90,10,0.5)",
+                  boxShadow:"0 6px 24px rgba(0,0,0,0.7)",
+                  transition:"all 0.22s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";e.currentTarget.style.transform="translateY(-3px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(160,90,10,0.5)";e.currentTarget.style.transform="none";}}
+              >
+                <span style={{fontSize:30}}>📖</span>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,color:"#c8a040",textTransform:"uppercase",textAlign:"center",lineHeight:1.3}}>How to Play</span>
+              </button>
+
+              {/* Guest */}
+              <button
+                onClick={(e)=>{e.stopPropagation();sfx.skipPlay();setIntroStep(2);}}
+                style={{
+                  flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                  padding:"18px 10px",borderRadius:18,cursor:"pointer",
+                  background:"linear-gradient(135deg,rgba(50,22,4,0.97),rgba(20,8,0,0.98))",
+                  border:"1.5px solid rgba(160,90,10,0.5)",
+                  boxShadow:"0 6px 24px rgba(0,0,0,0.7)",
+                  transition:"all 0.22s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";e.currentTarget.style.transform="translateY(-3px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(160,90,10,0.5)";e.currentTarget.style.transform="none";}}
+              >
+                <span style={{fontSize:30}}>👤</span>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,color:"#c8a040",textTransform:"uppercase",textAlign:"center",lineHeight:1.3}}>Guest</span>
+              </button>
+
+              {/* Sign In */}
+              {!fbUser ? (
+                <button
+                  onClick={(e)=>{
+                    e.stopPropagation();
+                    sfx.btnClick();
+                    setAuthLoading(true);
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+                    const method = isNative
+                      ? window._fbauth.signInWithRedirect(provider)
+                      : window._fbauth.signInWithPopup(provider);
+                    method.then(()=>{ setIntroStep(2); }).catch(()=>{}).finally(()=>setAuthLoading(false));
+                  }}
+                  disabled={authLoading}
+                  style={{
+                    flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                    padding:"18px 10px",borderRadius:18,cursor:authLoading?"not-allowed":"pointer",
+                    background:"linear-gradient(135deg,rgba(50,22,4,0.97),rgba(20,8,0,0.98))",
+                    border:"1.5px solid rgba(160,90,10,0.5)",
+                    boxShadow:"0 6px 24px rgba(0,0,0,0.7)",
+                    transition:"all 0.22s",opacity:authLoading?0.6:1,
+                  }}
+                  onMouseEnter={e=>{if(!authLoading){e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";e.currentTarget.style.transform="translateY(-3px)";}}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(160,90,10,0.5)";e.currentTarget.style.transform="none";}}
+                >
+                  {authLoading ? (
+                    <span style={{fontSize:26,animation:"introPulse 1s ease-in-out infinite"}}>⏳</span>
+                  ) : (
+                    <svg width="30" height="30" viewBox="0 0 48 48">
+                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                  )}
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,color:"#c8a040",textTransform:"uppercase",textAlign:"center",lineHeight:1.3}}>{authLoading?"Signing…":"Sign In"}</span>
+                </button>
+              ) : (
+                /* Already signed in — show avatar + tap to play */
+                <button
+                  onClick={(e)=>{e.stopPropagation();sfx.skipPlay();setIntroStep(2);}}
+                  style={{
+                    flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                    padding:"18px 10px",borderRadius:18,cursor:"pointer",
+                    background:"linear-gradient(135deg,rgba(50,30,4,0.97),rgba(20,10,0,0.98))",
+                    border:"1.5px solid rgba(200,160,40,0.6)",
+                    boxShadow:"0 6px 24px rgba(0,0,0,0.7),0 0 16px rgba(200,160,40,0.1)",
+                    transition:"all 0.22s",
+                  }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(255,210,60,0.9)";e.currentTarget.style.transform="translateY(-3px)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(200,160,40,0.6)";e.currentTarget.style.transform="none";}}
+                >
+                  {fbUser.photoURL
+                    ? <img src={fbUser.photoURL} style={{width:30,height:30,borderRadius:"50%",border:"2px solid rgba(200,160,40,0.7)"}} alt="avatar"/>
+                    : <span style={{fontSize:30}}>👤</span>
+                  }
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:9,letterSpacing:1,color:"#c8a040",textTransform:"uppercase",textAlign:"center",lineHeight:1.3,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {(fbUser.displayName||"Player").split(" ")[0]}
+                  </span>
+                  <button
+                    onClick={(e)=>{e.stopPropagation();signOut();}}
+                    style={{fontSize:9,fontFamily:"Cinzel,serif",letterSpacing:1,color:"#7a3010",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:-4}}
+                    onMouseEnter={e=>e.currentTarget.style.color="#e06040"}
+                    onMouseLeave={e=>e.currentTarget.style.color="#7a3010"}
+                  >sign out</button>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2516,7 +2972,7 @@ function Pallankuzhi() {
               </button>
             </div>
             <button
-              onClick={()=>{sfx.pageBack();setIntroStep(1);}}
+              onClick={()=>{sfx.pageBack();setIntroStep(0);}}
               style={{
                 position:"relative",zIndex:1,
                 padding:"11px 30px",borderRadius:30,
@@ -2841,7 +3297,7 @@ function Pallankuzhi() {
           filter:"blur(28px)",pointerEvents:"none"}}/>
         <div style={{
           position:"relative",
-          background:"linear-gradient(145deg,#8a3e0a 0%,#4e1e04 18%,#2e0e00 40%,#4a1c04 58%,#7e3608 76%,#3c1602 90%,#6a2e06 100%)",
+        background:_theme.bg,
           borderRadius:22,
           boxShadow:"0 40px 100px rgba(0,0,0,0.98),0 12px 36px rgba(80,30,0,0.6),inset 0 1px 0 rgba(200,140,60,0.3)",
         }}>
@@ -2854,7 +3310,7 @@ function Pallankuzhi() {
             </div>
             <div style={{
               flex:1,
-              background:"linear-gradient(160deg,#6e2e06 0%,#4a1a02 30%,#300e00 60%,#4e2004 100%)",
+              background:_theme.inner,
               boxShadow:"inset 0 4px 20px rgba(0,0,0,0.85)",
               position:"relative",
               padding:isLandscape?"8px 12px 10px":"14px 12px 18px",
@@ -2986,21 +3442,119 @@ function Pallankuzhi() {
         display:"flex",
         flexDirection: isDesktop && isLandscape ? "column" : isLandscape ? "row" : "column",
         alignItems:"center",
-        gap: isDesktop ? 12 : isLandscape ? 10 : 8,
-        marginLeft: isDesktop && isLandscape ? 10 : isLandscape ? 0 : 6,
+        gap: isDesktop ? 10 : isLandscape ? 8 : 6,
+        marginLeft: isDesktop && isLandscape ? 10 : isLandscape ? 0 : 4,
         marginTop: isDesktop ? 0 : isLandscape ? 6 : 0,
         alignSelf:"stretch",
         justifyContent:"center",
         paddingTop: isDesktop ? 12 : isLandscape ? 6 : 8,
         paddingBottom: isDesktop ? 12 : isLandscape ? 6 : 8,
-        paddingLeft: isDesktop && isLandscape ? 6 : isLandscape ? 8 : 0,
-        paddingRight: isDesktop && isLandscape ? 6 : isLandscape ? 8 : 0,
-        width: isDesktop && isLandscape ? 80 : isLandscape ? "100%" : 68,
+        paddingLeft: isDesktop && isLandscape ? 6 : isLandscape ? 8 : 2,
+        paddingRight: isDesktop && isLandscape ? 6 : isLandscape ? 8 : 2,
+        width: isDesktop && isLandscape ? 80 : isLandscape ? "100%" : 52,
         height: isDesktop ? "auto" : isLandscape ? 64 : "auto",
         flexShrink:0,
         visibility:introStep===4?"visible":"hidden",
         pointerEvents:introStep===4?"auto":"none",
       }}>
+        {/* ── COINS HUD ── */}
+        {fbUser && (
+          <div style={{
+            display:"flex",alignItems:"center",justifyContent:"center",gap:2,padding:"4px 2px",borderRadius:20,
+            width:40,flexShrink:0,
+            background:coinFlash?"rgba(255,220,40,0.25)":"rgba(40,20,4,0.85)",
+            border:`1.5px solid ${coinFlash?"rgba(255,200,40,0.8)":"rgba(80,40,8,0.5)"}`,
+            transition:"all 0.4s",
+            boxShadow:coinFlash?"0 0 16px rgba(255,200,0,0.6)":"none",
+          }}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+              <span style={{fontSize:12}}>🪙</span>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:10,fontWeight:700,
+                color:coinFlash?"#ffe040":"#c8a040",letterSpacing:0,transition:"color 0.4s"}}>{coins}</span>
+            </div>
+          </div>
+        )}
+        {/* ── LEVEL BADGE ── */}
+        {fbUser&&(
+          <div style={{
+            display:"flex",alignItems:"center",justifyContent:"center",gap:2,padding:"4px 2px",borderRadius:20,
+            width:40,flexShrink:0,
+            background:"rgba(80,40,160,0.25)",border:"1.5px solid rgba(140,80,220,0.6)",
+            boxShadow:level>=10?"0 0 10px rgba(140,80,220,0.4)":"none",
+          }}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+              <span style={{fontSize:10}}>⭐</span>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:10,fontWeight:700,color:"#c090ff",letterSpacing:0}}>Lv{level}</span>
+            </div>
+          </div>
+        )}
+        {/* ── WIN STREAK BADGE ── */}        {fbUser&&winStreak>=2&&(
+          <div style={{
+            display:"flex",alignItems:"center",justifyContent:"center",gap:2,padding:"4px 2px",borderRadius:20,
+            width:40,flexShrink:0,
+            background:"rgba(200,80,10,0.2)",border:"1.5px solid rgba(255,100,30,0.6)",
+            boxShadow:winStreak>=5?"0 0 12px rgba(255,100,20,0.5)":"none",
+          }}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+              <span style={{fontSize:12}}>🔥</span>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:10,fontWeight:700,color:"#ff8040",letterSpacing:0}}>{winStreak}</span>
+            </div>
+          </div>
+        )}
+        {/* ── TURN TIMER ── */}
+        {introStep===4&&!over&&(
+          <div style={{
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
+            background:timerSeconds<=10?"rgba(180,20,10,0.6)":"rgba(40,20,4,0.85)",
+            border:`2px solid ${timerSeconds<=10?"rgba(255,80,60,0.9)":timerActive?"rgba(200,140,10,0.7)":"rgba(80,40,8,0.4)"}`,
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            boxShadow:timerSeconds<=5?"0 0 16px rgba(255,60,40,0.6)":"none",
+            transition:"all 0.4s",
+          }}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",transform:isLandscape?"none":"rotate(90deg)"}}>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:13,fontWeight:700,
+                color:timerSeconds<=10?"#ff8060":"#c8a040",lineHeight:1}}>{timerSeconds}</span>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:7,color:"#5a3010",letterSpacing:0.5}}>SEC</span>
+            </div>
+          </div>
+        )}
+        {/* ── LEADERBOARD BUTTON ── */}
+        <div
+          onClick={()=>{setShowLeaderboard(true);fetchLeaderboard();}}
+          title="Leaderboard"
+          style={{
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
+            background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",transition:"all 0.2s",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+        >
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <span style={{fontSize:16}}>🏅</span>
+            <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#c8a040",letterSpacing:0.5,lineHeight:1}}>RANK</span>
+          </div>
+        </div>
+        {/* ── THEME BUTTON ── */}
+        <div
+          onClick={()=>setShowThemePicker(p=>!p)}
+          title="Board theme"
+          style={{
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
+            background:showThemePicker?"rgba(200,140,40,0.2)":"rgba(40,20,4,0.8)",
+            border:`1.5px solid ${showThemePicker?"rgba(200,160,40,0.8)":"rgba(80,40,8,0.5)"}`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",transition:"all 0.2s",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor=showThemePicker?"rgba(200,160,40,0.8)":"rgba(80,40,8,0.5)";}}
+        >
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <span style={{fontSize:16}}>🎨</span>
+            <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#c8a040",letterSpacing:0.5,lineHeight:1}}>THEME</span>
+          </div>
+        </div>
         {/* Tamil title — always visible */}
         <div style={{marginBottom:4}}>
           <span style={{
@@ -3060,7 +3614,7 @@ function Pallankuzhi() {
         <div
           onClick={()=>{sfx.btnClick();if((gameMode==="online"||gameMode==="matchmaking")&&over){sendRematch();}reset();}}
           style={{
-            width:44,height:44,borderRadius:"50%",flexShrink:0,
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
             background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
             display:"flex",alignItems:"center",justifyContent:"center",
             cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
@@ -3082,7 +3636,7 @@ function Pallankuzhi() {
             return null; // portrait → back to auto
           });}}
           style={{
-            width:44,height:44,borderRadius:"50%",flexShrink:0,
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
             background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
             display:"flex",alignItems:"center",justifyContent:"center",
             cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
@@ -3094,8 +3648,8 @@ function Pallankuzhi() {
           onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
         >
           {/* Fix #12: show current mode label below the icon so 3-state cycle is discoverable */}
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-            <span style={{color:"#c8a040",fontSize:16,lineHeight:1}}>{orient===null?"⊞":isLandscape?"⤡":"⤢"}</span>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <span style={{color:"#c8a040",fontSize:14,lineHeight:1}}>{orient===null?"⊞":isLandscape?"⤡":"⤢"}</span>
             <span style={{color:"#7a5020",fontSize:7,letterSpacing:0.5,fontFamily:"Cinzel,serif",lineHeight:1}}>
               {orient===null?"AUTO":isLandscape?"LAND":"PORT"}
             </span>
@@ -3114,7 +3668,7 @@ function Pallankuzhi() {
             }
           }}
           style={{
-            width:44,height:44,borderRadius:"50%",flexShrink:0,
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
             background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
             display:"flex",alignItems:"center",justifyContent:"center",
             cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
@@ -3124,8 +3678,33 @@ function Pallankuzhi() {
           onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
         >
-          <span style={{color:"#c8a040",fontSize:18}}>{muteAudio?"🔇":"🔊"}</span>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <span style={{color:"#c8a040",fontSize:16}}>{muteAudio?"🔇":"🔊"}</span>
+            <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#7a5020",letterSpacing:0.5,lineHeight:1}}>{muteAudio?"MUTE":"SFX"}</span>
+          </div>
         </div>
+        {/* Profile button — only shown when signed in */}
+        {fbUser && (
+          <div
+            onClick={()=>setShowInGameProfile(p=>!p)}
+            title={fbUser.displayName||"Profile"}
+            style={{
+              width:40,height:40,borderRadius:"50%",flexShrink:0,
+              background:showInGameProfile?"rgba(200,160,40,0.2)":"rgba(40,20,4,0.8)",
+              border:`1.5px solid ${showInGameProfile?"rgba(200,160,40,0.8)":"rgba(80,40,8,0.5)"}`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
+              transition:"all 0.2s",overflow:"hidden",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=showInGameProfile?"rgba(200,160,40,0.8)":"rgba(80,40,8,0.5)";}}
+          >
+            {fbUser.photoURL
+              ? <img src={fbUser.photoURL} style={{width:40,height:40,borderRadius:"50%",objectFit:"cover"}} alt="profile"/>
+              : <span style={{color:"#c8a040",fontSize:16}}>👤</span>
+            }
+          </div>
+        )}
         {/* Fix #22: Resign button — only in online/matchmaking, only mid-game, two-tap confirm */}
         {(gameMode==="online"||gameMode==="matchmaking")&&!over&&introStep===4&&(
           <div
@@ -3158,7 +3737,7 @@ function Pallankuzhi() {
             }}
             title={resignConfirm?"Tap again to confirm resign":"Resign game"}
             style={{
-              width:44,height:44,borderRadius:"50%",flexShrink:0,
+              width:40,height:40,borderRadius:"50%",flexShrink:0,
               background:resignConfirm?"rgba(160,20,10,0.5)":"rgba(40,20,4,0.8)",
               border:`1.5px solid ${resignConfirm?"rgba(255,80,60,0.8)":"rgba(80,40,8,0.5)"}`,
               display:"flex",alignItems:"center",justifyContent:"center",
@@ -3169,10 +3748,28 @@ function Pallankuzhi() {
             onMouseLeave={e=>{e.currentTarget.style.borderColor=resignConfirm?"rgba(255,80,60,0.8)":"rgba(80,40,8,0.5)";}}
           >
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-              <span style={{fontSize:resignConfirm?11:16,lineHeight:1,color:resignConfirm?"#ff6050":"#c8a040"}}>
+              <span style={{fontSize:resignConfirm?11:16,lineHeight:1,color:resignConfirm?"#ff6050":"#c8a040",display:"inline-block",transform:isLandscape?"none":"rotate(90deg)"}}>
                 {resignConfirm?"SURE?":"⚑"}
               </span>
             </div>
+          </div>
+        )}
+        {/* ── EMOJI REACTIONS (online only) ── */}
+        {(gameMode==="online"||gameMode==="matchmaking")&&introStep===4&&!over&&(
+          <div style={{display:"flex",flexDirection:isLandscape?"row":"column",gap:4,flexShrink:0}}>
+            {["😂","😤","👍","🔥","😱","🙏"].map(emoji=>(
+              <div key={emoji}
+                onClick={()=>sendEmoji(emoji)}
+                style={{
+                  width:32,height:32,borderRadius:"50%",flexShrink:0,
+                  background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.45)",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  cursor:"pointer",fontSize:16,transition:"transform 0.1s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.25)";}}
+                onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";}}
+              >{emoji}</div>
+            ))}
           </div>
         )}
         {/* You score */}
@@ -3198,6 +3795,296 @@ function Pallankuzhi() {
           }}/>}
         </div>
       </div>{}
+
+      {/* ── IN-GAME PROFILE OVERLAY ── */}
+      {showInGameProfile && fbUser && (
+        <div
+          onClick={()=>setShowInGameProfile(false)}
+          style={{
+            position:"fixed",inset:0,zIndex:1500,
+            background:"rgba(0,0,0,0.55)",
+            display:"flex",alignItems:"flex-end",justifyContent:"center",
+            animation:"introFadeIn 0.2s ease both",
+          }}
+        >
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{
+              width:"min(340px,92vw)",
+              borderRadius:"18px 18px 0 0",
+              background:"linear-gradient(145deg,rgba(40,16,0,0.99),rgba(16,6,0,0.99))",
+              border:"1.5px solid rgba(160,90,10,0.5)",
+              borderBottom:"none",
+              boxShadow:"0 -8px 40px rgba(0,0,0,0.9)",
+              padding:"20px 24px 32px",
+              display:"flex",flexDirection:"column",alignItems:"center",gap:14,
+            }}
+          >
+            {/* Handle bar */}
+            <div style={{width:40,height:4,borderRadius:2,background:"rgba(160,90,10,0.4)",marginBottom:4}}/>
+            {/* Avatar + name */}
+            {fbUser.photoURL
+              ? <img src={fbUser.photoURL} style={{width:64,height:64,borderRadius:"50%",border:"3px solid rgba(200,160,40,0.7)",boxShadow:"0 4px 16px rgba(0,0,0,0.7)"}} alt="avatar"/>
+              : <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(200,130,20,0.3)",border:"3px solid rgba(200,160,40,0.6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>👤</div>
+            }
+            <div style={{textAlign:"center"}}>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:3,color:"#c8a040"}}>{fbUser.displayName||"Player"}</div>
+              <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#5a3810",fontStyle:"italic",marginTop:2}}>{fbUser.email}</div>
+            </div>
+            {/* Stats */}
+            <div style={{display:"flex",gap:20,padding:"12px 0",borderTop:"1px solid rgba(160,90,10,0.3)",borderBottom:"1px solid rgba(160,90,10,0.3)",width:"100%",justifyContent:"center"}}>
+              {[
+                {label:"WINS",val:userStats.wins||0,color:"#60e090",icon:"🏆"},
+                {label:"LOSSES",val:userStats.losses||0,color:"#e06060",icon:"💀"},
+                {label:"DRAWS",val:userStats.draws||0,color:"#a0a060",icon:"🤝"},
+              ].map(({label,val,color,icon})=>(
+                <div key={label} style={{textAlign:"center"}}>
+                  <div style={{fontSize:22}}>{icon}</div>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:22,fontWeight:700,color,lineHeight:1.2}}>{val}</div>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:16,padding:"10px 0",borderBottom:"1px solid rgba(160,90,10,0.3)",width:"100%",justifyContent:"center"}}>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:18}}>🪙</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,color:"#ffe040",lineHeight:1.2}}>{coins}</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>COINS</div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:18}}>⭐</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,color:"#80d0ff",lineHeight:1.2}}>{xp}</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>XP</div>
+              </div>
+            </div>
+            {/* XP & Level */}
+            <div style={{display:"flex",gap:16,padding:"10px 0",borderBottom:"1px solid rgba(160,90,10,0.3)",width:"100%",justifyContent:"center",flexDirection:"column",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                  <div style={{fontSize:18}}>⭐</div>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:22,fontWeight:700,color:"#c090ff",lineHeight:1.2}}>Lv{level}</div>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>LEVEL</div>
+                </div>
+                <div style={{flex:1,minWidth:140}}>
+                  {(()=>{
+                    const xpForThisLevel = XP_FOR_LEVEL[Math.min(level-1,49)];
+                    const xpAtThisLevel = getTotalXpForLevel(level);
+                    const progress = level>=50?1:Math.min((xp-xpAtThisLevel)/xpForThisLevel,1);
+                    return (
+                      <>
+                        <div style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#7a5030",marginBottom:4,fontStyle:"italic"}}>
+                          {level>=50?"MAX LEVEL":`${Math.max(0,xp-xpAtThisLevel)} / ${xpForThisLevel} XP to Lv${level+1}`}
+                        </div>
+                        <div style={{height:8,borderRadius:4,background:"rgba(80,40,8,0.4)",overflow:"hidden"}}>
+                          <div style={{height:"100%",borderRadius:4,width:`${Math.round(progress*100)}%`,background:"linear-gradient(90deg,#8040c0,#c090ff)",transition:"width 0.6s ease",boxShadow:"0 0 6px rgba(160,100,255,0.5)"}}/>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+              {LEVEL_MILESTONES[level]&&<div style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#c090ff",fontStyle:"italic",textAlign:"center"}}>✨ {LEVEL_MILESTONES[level].desc}</div>}
+              {level<50&&LEVEL_MILESTONES[Object.keys(LEVEL_MILESTONES).find(k=>Number(k)>level)]&&(
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#5a3810",fontStyle:"italic",textAlign:"center"}}>
+                  Next milestone: Lv{Object.keys(LEVEL_MILESTONES).find(k=>Number(k)>level)} — {LEVEL_MILESTONES[Object.keys(LEVEL_MILESTONES).find(k=>Number(k)>level)].desc}
+                </div>
+              )}
+            </div>
+            {/* Streak stats */}
+            <div style={{display:"flex",gap:16,padding:"10px 0",borderBottom:"1px solid rgba(160,90,10,0.3)",width:"100%",justifyContent:"center"}}>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:18}}>🔥</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,color:"#ff8040",lineHeight:1.2}}>{winStreak}</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>STREAK</div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:18}}>⚡</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,color:"#ffe080",lineHeight:1.2}}>{bestStreak}</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>BEST</div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:18}}>📅</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,color:"#80e0c0",lineHeight:1.2}}>{loginStreak}</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:8,letterSpacing:2,color:"#5a3810"}}>DAYS</div>
+              </div>
+            </div>
+            {/* Buttons */}
+            <div style={{display:"flex",gap:10,width:"100%"}}>
+              <button
+                onClick={()=>setShowInGameProfile(false)}
+                style={{flex:1,padding:"10px",borderRadius:20,cursor:"pointer",fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:2,color:"#7a5020",background:"transparent",border:"1px solid rgba(80,40,8,0.5)",transition:"all 0.2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.6)";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#7a5020";e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+              >Close</button>
+              <button
+                onClick={()=>{signOut();setShowInGameProfile(false);}}
+                style={{flex:1,padding:"10px",borderRadius:20,cursor:"pointer",fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:2,color:"#e06060",background:"transparent",border:"1px solid rgba(180,60,40,0.4)",transition:"all 0.2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(220,80,60,0.7)";e.currentTarget.style.color="#ff8060";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(180,60,40,0.4)";e.currentTarget.style.color="#e06060";}}
+              >Sign Out</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DAILY LOGIN BONUS MODAL ── */}
+      {showDailyModal&&dailyReward&&(
+        <div style={{position:"fixed",inset:0,zIndex:4000,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",animation:"introFadeIn 0.3s ease both"}}>
+          <div style={{width:"min(320px,88vw)",borderRadius:24,background:"linear-gradient(145deg,#1a0a00,#0a0400)",border:"2px solid rgba(200,140,30,0.6)",boxShadow:"0 0 80px rgba(200,120,10,0.3),0 20px 60px rgba(0,0,0,0.9)",padding:"32px 24px 28px",display:"flex",flexDirection:"column",alignItems:"center",gap:16,textAlign:"center"}}>
+            {/* Decorative glow */}
+            <div style={{position:"absolute",width:200,height:200,borderRadius:"50%",background:"radial-gradient(ellipse,rgba(200,120,10,0.2),transparent 70%)",filter:"blur(30px)",pointerEvents:"none"}}/>
+            <div style={{fontSize:56,lineHeight:1,filter:"drop-shadow(0 0 20px rgba(255,180,0,0.8))",animation:"gentleFloat 2s ease-in-out infinite"}}>🎁</div>
+            <div>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,letterSpacing:4,background:"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginBottom:4}}>Daily Reward!</div>
+              <div style={{fontFamily:"Crimson Text,serif",fontSize:14,color:"#7a5030",fontStyle:"italic"}}>
+                {dailyReward.day===1?"Welcome back!":dailyReward.day===7?"🎉 7-day streak — max reward!":dailyReward.day>=3?`${dailyReward.day}-day login streak!`:`Day ${dailyReward.day} — keep it up!`}
+              </div>
+            </div>
+            {/* 7-day calendar strip */}
+            <div style={{display:"flex",gap:6,padding:"10px 0"}}>
+              {[1,2,3,4,5,6,7].map(d=>{
+                const DAY_REWARDS=[25,30,40,50,65,80,100];
+                const claimed = d<=dailyReward.day;
+                const today   = d===dailyReward.day;
+                return (
+                  <div key={d} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"6px 4px",borderRadius:8,width:36,background:today?"rgba(255,180,30,0.2)":claimed?"rgba(100,60,10,0.3)":"rgba(20,10,0,0.4)",border:`1px solid ${today?"rgba(255,180,30,0.7)":claimed?"rgba(120,70,10,0.5)":"rgba(40,20,4,0.4)"}`,transition:"all 0.2s"}}>
+                    <div style={{fontSize:10,fontFamily:"Cinzel,serif",color:today?"#ffe040":claimed?"#c8a040":"#3a1c04",letterSpacing:0.5}}>D{d}</div>
+                    <div style={{fontSize:claimed?14:11,transition:"font-size 0.2s"}}>{claimed?"✅":"🔒"}</div>
+                    <div style={{fontFamily:"Cinzel,serif",fontSize:8,color:today?"#ffe040":claimed?"#a07030":"#2a1408",fontWeight:today?"bold":"normal"}}>{DAY_REWARDS[d-1]}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Big reward display */}
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 28px",borderRadius:20,background:"rgba(255,190,30,0.12)",border:"1.5px solid rgba(200,150,20,0.5)"}}>
+              <span style={{fontSize:28}}>🪙</span>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:28,fontWeight:700,color:"#ffe040",letterSpacing:2}}>+{dailyReward.coins}</span>
+              <span style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#9a7030",fontStyle:"italic",alignSelf:"flex-end",marginBottom:2}}>coins</span>
+            </div>
+            {loginStreak>=2&&(
+              <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#7a5030",fontStyle:"italic"}}>
+                📅 {loginStreak}-day login streak — keep going for bigger rewards!
+              </div>
+            )}
+            <button
+              onClick={()=>setShowDailyModal(false)}
+              style={{padding:"13px 44px",borderRadius:30,fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:4,textTransform:"uppercase",color:"#c8a040",cursor:"pointer",background:"linear-gradient(135deg,rgba(80,34,4,0.95),rgba(28,10,0,0.98))",border:"1.5px solid rgba(160,90,10,0.7)",boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",transition:"all 0.25s",marginTop:4}}
+              onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";}}
+            >Claim!</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── FLOATING EMOJIS ── */}
+      {floatingEmojis.map(fe=>(
+        <div key={fe.id} style={{
+          position:"fixed",
+          right: fe.own ? 80 : 20,
+          bottom:"30%",
+          fontSize:42,
+          zIndex:3000,
+          pointerEvents:"none",
+          animation:"emojiFloat 2.2s ease forwards",
+        }}>{fe.emoji}</div>
+      ))}
+
+      {/* ── LEVEL-UP MODAL ── */}
+      {showLevelUp&&(
+        <div style={{position:"fixed",inset:0,zIndex:4500,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",animation:"introFadeIn 0.3s ease both"}}>
+          <div style={{width:"min(300px,86vw)",borderRadius:24,background:"linear-gradient(145deg,#120820,#06020e)",border:"2px solid rgba(160,100,255,0.6)",boxShadow:"0 0 80px rgba(120,60,220,0.4),0 20px 60px rgba(0,0,0,0.9)",padding:"32px 24px 28px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,textAlign:"center",position:"relative"}}>
+            <div style={{position:"absolute",width:200,height:200,borderRadius:"50%",background:"radial-gradient(ellipse,rgba(120,60,220,0.25),transparent 70%)",filter:"blur(30px)",pointerEvents:"none",top:"50%",left:"50%",transform:"translate(-50%,-50%)"}}/>
+            <div style={{fontSize:56,lineHeight:1,filter:"drop-shadow(0 0 20px rgba(160,100,255,0.8))",animation:"gentleFloat 2s ease-in-out infinite"}}>⭐</div>
+            <div>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:22,fontWeight:700,letterSpacing:4,background:"linear-gradient(135deg,#e0b0ff,#8040c0,#c090ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginBottom:4}}>Level Up!</div>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:32,fontWeight:700,color:"#c090ff",letterSpacing:2}}>Lv {showLevelUp.newLevel}</div>
+            </div>
+            {showLevelUp.milestone&&(
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 20px",borderRadius:16,background:"rgba(120,60,220,0.15)",border:"1.5px solid rgba(160,100,255,0.4)",width:"100%"}}>
+                <span style={{fontSize:24}}>🎁</span>
+                <div style={{textAlign:"left"}}>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,color:"#c090ff",marginBottom:2}}>MILESTONE UNLOCKED</div>
+                  <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#9070d0",fontStyle:"italic"}}>{showLevelUp.milestone.desc}</div>
+                </div>
+              </div>
+            )}
+            {!showLevelUp.milestone&&level<50&&(
+              <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#6040a0",fontStyle:"italic"}}>Keep playing to reach the next milestone!</div>
+            )}
+            <button
+              onClick={()=>setShowLevelUp(null)}
+              style={{padding:"13px 44px",borderRadius:30,fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:4,textTransform:"uppercase",color:"#c090ff",cursor:"pointer",background:"linear-gradient(135deg,rgba(60,20,100,0.95),rgba(20,8,40,0.98))",border:"1.5px solid rgba(140,80,220,0.7)",boxShadow:"0 6px 28px rgba(0,0,0,0.7)",transition:"all 0.25s",marginTop:4}}
+              onMouseEnter={e=>{e.currentTarget.style.color="#e0b0ff";e.currentTarget.style.borderColor="rgba(200,140,255,0.9)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#c090ff";e.currentTarget.style.borderColor="rgba(140,80,220,0.7)";}}
+            >Awesome!</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── LEADERBOARD OVERLAY ── */}
+      {showLeaderboard&&(
+        <div onClick={()=>setShowLeaderboard(false)} style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",animation:"introFadeIn 0.25s ease both"}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"min(360px,92vw)",maxHeight:"80vh",borderRadius:18,background:"linear-gradient(145deg,rgba(14,6,0,0.99),rgba(6,2,0,0.99))",border:"1.5px solid rgba(200,140,30,0.5)",boxShadow:"0 8px 60px rgba(0,0,0,0.9)",padding:"20px 0 24px",display:"flex",flexDirection:"column",gap:0,overflowY:"auto"}}>
+            <div style={{textAlign:"center",padding:"0 24px 14px",borderBottom:"1px solid rgba(160,90,10,0.3)"}}>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:18,fontWeight:700,letterSpacing:4,background:"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>🏅 Leaderboard</div>
+              <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#5a3810",fontStyle:"italic",marginTop:4}}>Top players by wins</div>
+            </div>
+            {leaderboardLoading?(
+              <div style={{textAlign:"center",padding:32,color:"#5a3810",fontFamily:"Crimson Text,serif",fontSize:14}}>Loading…</div>
+            ):(
+              <div style={{padding:"8px 0"}}>
+                {leaderboardData.map((p,i)=>(
+                  <div key={p.uid} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 20px",background:p.uid===fbUser?.uid?"rgba(200,140,10,0.12)":"transparent",borderLeft:p.uid===fbUser?.uid?"3px solid #c8a040":"3px solid transparent"}}>
+                    <div style={{width:28,fontFamily:"Cinzel,serif",fontSize:13,fontWeight:700,color:i===0?"#ffe040":i===1?"#c0c0c0":i===2?"#cd7f32":"#5a3810",textAlign:"center",flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
+                    {p.photo?<img src={p.photo} style={{width:32,height:32,borderRadius:"50%",border:"2px solid rgba(160,90,10,0.5)",flexShrink:0}} alt=""/>:<div style={{width:32,height:32,borderRadius:"50%",background:"rgba(80,40,8,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>👤</div>}
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:"Cinzel,serif",fontSize:12,color:"#c8a040",letterSpacing:1,display:"flex",alignItems:"center",gap:6}}>
+                        {(p.name||"Player").split(" ")[0]}
+                        {p.xp>0&&<span style={{fontSize:9,color:"#c090ff",background:"rgba(80,40,160,0.2)",border:"1px solid rgba(140,80,220,0.4)",borderRadius:10,padding:"1px 5px",letterSpacing:1}}>Lv{getLevelFromXp(p.xp)}</span>}
+                        {getLevelFromXp(p.xp)>=50&&<span style={{fontSize:9,color:"#ffe040",letterSpacing:1}}>👑</span>}
+                      </div>
+                      <div style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#5a3810"}}>🪙 {p.coins||0} coins</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontFamily:"Cinzel,serif",fontSize:16,fontWeight:700,color:"#60e090"}}>{p.wins}</div>
+                      <div style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#3a2008"}}>wins</div>
+                    </div>
+                  </div>
+                ))}
+                {leaderboardData.length===0&&<div style={{textAlign:"center",padding:24,color:"#5a3810",fontFamily:"Crimson Text,serif",fontSize:14,fontStyle:"italic"}}>No entries yet — be the first!</div>}
+              </div>
+            )}
+            <div style={{textAlign:"center",paddingTop:12}}>
+              <button onClick={()=>setShowLeaderboard(false)} style={{padding:"9px 28px",borderRadius:20,fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:2,color:"#7a5020",background:"transparent",border:"1px solid rgba(80,40,8,0.5)",cursor:"pointer",transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";}} onMouseLeave={e=>{e.currentTarget.style.color="#7a5020";}}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── THEME PICKER OVERLAY ── */}
+      {showThemePicker&&(
+        <div onClick={()=>setShowThemePicker(false)} style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"flex-end",justifyContent:"center",animation:"introFadeIn 0.2s ease both"}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"min(360px,92vw)",borderRadius:"18px 18px 0 0",background:"linear-gradient(145deg,rgba(14,6,0,0.99),rgba(6,2,0,0.99))",border:"1.5px solid rgba(160,90,10,0.5)",borderBottom:"none",boxShadow:"0 -8px 40px rgba(0,0,0,0.9)",padding:"20px 24px 36px",display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{textAlign:"center",marginBottom:4}}>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:16,fontWeight:700,letterSpacing:4,background:"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>🎨 Board Theme</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {Object.entries(THEMES).map(([key,th])=>(
+                <div key={key} onClick={()=>{if(th.unlocked){setBoardTheme(key);setShowThemePicker(false);sfx.btnClick();}}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:12,cursor:th.unlocked?"pointer":"not-allowed",background:boardTheme===key?"rgba(200,140,10,0.15)":"rgba(0,0,0,0.3)",border:`1.5px solid ${boardTheme===key?"rgba(200,140,10,0.7)":th.unlocked?"rgba(80,40,8,0.4)":"rgba(40,20,8,0.3)"}`,opacity:th.unlocked?1:0.5,transition:"all 0.2s"}}
+                  onMouseEnter={e=>{if(th.unlocked)e.currentTarget.style.borderColor="rgba(200,140,10,0.6)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=boardTheme===key?"rgba(200,140,10,0.7)":th.unlocked?"rgba(80,40,8,0.4)":"rgba(40,20,8,0.3)";}}>
+                  <div style={{width:36,height:36,borderRadius:8,background:th.bg,border:`2px solid ${th.accent}`,flexShrink:0}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:2,color:th.accent}}>{th.name}</div>
+                    {!th.unlocked&&<div style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#5a3010",fontStyle:"italic"}}>🔒 Requires 200 coins</div>}
+                  </div>
+                  {boardTheme===key&&<span style={{color:th.accent,fontSize:16}}>✓</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <_FS events={flySeeds} />
       {tripleFlies.map(tf => (
@@ -3290,6 +4177,26 @@ function Pallankuzhi() {
                 return "A perfectly balanced game.";
               })()}
             </div>
+            {fbUser&&gameMode!=="pvp"&&(result==="win"||result==="lose"||result==="draw")&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 16px",borderRadius:20,background:"rgba(255,200,40,0.1)",border:"1px solid rgba(200,160,30,0.4)"}}>
+                  <span style={{fontSize:16}}>🪙</span>
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:12,color:"#ffe040",letterSpacing:1}}>+{result==="win"?50:result==="draw"?10:5} coins &nbsp;·&nbsp; +{result==="win"?80:result==="draw"?20:10} XP</span>
+                </div>
+                {streakBonus&&result==="win"&&(
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 16px",borderRadius:20,background:"rgba(255,140,20,0.15)",border:"1px solid rgba(255,120,20,0.5)",animation:"pulse 0.6s ease"}}>
+                    <span style={{fontSize:18}}>🔥</span>
+                    <span style={{fontFamily:"Cinzel,serif",fontSize:12,color:"#ff9040",letterSpacing:1}}>{streakBonus.streak}-Win Streak! +{streakBonus.bonus} bonus</span>
+                  </div>
+                )}
+                {result==="win"&&winStreak>0&&(
+                  <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 12px",borderRadius:16,background:"rgba(255,100,20,0.08)",border:"1px solid rgba(200,80,10,0.3)"}}>
+                    <span style={{fontSize:14}}>🔥</span>
+                    <span style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#c87040",fontStyle:"italic"}}>{winStreak} win streak</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{display:"flex",alignItems:"center",gap:10,width:"80%",margin:"4px 0"}}>
               <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(180,120,30,0.4))"}}/>
               <span style={{fontSize:11,color:"rgba(200,140,30,0.5)"}}>◆</span>
@@ -3313,15 +4220,12 @@ function Pallankuzhi() {
                 sfx.btnClick();
                 if(gameMode==="online"||gameMode==="matchmaking"){
                   if(onlineRole==="host"){
-                    // Fix #14: host resets first, then sends restart + sync so guest gets
-                    // the fresh board state immediately, preventing draw-rematch desync.
+                    // Host sends restart + sync to guest, then resets locally.
                     const freshBoard = _ib(shellCount);
-                    setResult(null);
-                    setBoard(freshBoard); setScores([0,0]); setTurn(0); setOver(false);
                     _fc.current={ [_FH]: new Set(), [_FA]: new Set() };
                     if(connRef.current&&connRef.current.open){
                       connRef.current.send({type:"restart", shellCount});
-                      // Send a sync immediately after so guest board matches exactly
+                      // Send authoritative fresh board so guest syncs before reset animation
                       connRef.current.send({
                         type:"sync",
                         board: freshBoard,
@@ -3330,6 +4234,8 @@ function Pallankuzhi() {
                         fcA: [],
                       });
                     }
+                    // Fix Bug 5: call reset() once — previously state was set manually here
+                    // AND inside reset(), causing a double-render race with the sync send.
                     reset();
                     return;
                   } else {
