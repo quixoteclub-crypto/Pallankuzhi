@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,8 +63,4 @@ jobs:
             🐚 Pallankuzhi Android APK
             Built automatically from latest code.
             Download and install the APK below.
-          files: android/app/build/outputs/apk/debug/app-debug.apk
-          fail_on_unmatched_files: false
-          overwrite: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: android/app/build/outputs/a
