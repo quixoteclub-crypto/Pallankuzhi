@@ -32,6 +32,9 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+      - name: Fix Kotlin duplicate class error
+        run: |
+          sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.10'/" android/build.gradle
       - name: Build APK
         run: |
           cd android
