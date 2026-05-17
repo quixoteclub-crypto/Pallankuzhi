@@ -438,7 +438,31 @@ function _ca() {
       this._introGain = null;
       clearTimeout(this._introTimer);
     },
-    btnClick() {
+    levelUp() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      // Rising arpeggio + shimmer burst
+      const notes = [392, 494, 587, 784, 988, 1175];
+      notes.forEach((freq, i) => {
+        const dt = i * 0.08;
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.55 - i * 0.04, 0.01, 0.15, 0.5 + i * 0.06);
+        const osc = c.createOscillator();
+        osc.type = i < 3 ? "triangle" : "sine";
+        osc.frequency.setValueAtTime(freq, t + dt);
+        osc.frequency.linearRampToValueAtTime(freq * 1.02, t + dt + 0.2);
+        osc.connect(g); osc.start(t + dt); osc.stop(t + dt + 0.8);
+      });
+      // Sparkle shimmer on top
+      [0.5, 0.6, 0.7].forEach((dt, i) => {
+        const g2 = c.createGain(); g2.connect(c.destination);
+        env(g2, 0.3, 0.005, 0.04, 0.25);
+        const o2 = c.createOscillator();
+        o2.type = "sine";
+        o2.frequency.setValueAtTime(2000 + i * 300, t + dt);
+        o2.connect(g2); o2.start(t + dt); o2.stop(t + dt + 0.3);
+      });
+    },
       if(_isMuted()) return;
       const c = getCtx(), t = c.currentTime;
       const g = c.createGain(); g.connect(c.destination);
@@ -1546,6 +1570,7 @@ function Pallankuzhi() {
   const [coins, setCoins] = useState(0);
   const [xp, setXp] = useState(0);
   const [coinFlash, setCoinFlash] = useState(false);
+  const [lastCoinReward, setLastCoinReward] = useState({coins:0,xp:0}); // actual awarded on result screen
 
   // ── WIN STREAK ──
   const [winStreak, setWinStreak] = useState(0);
@@ -1706,7 +1731,7 @@ function Pallankuzhi() {
             setLevel(prev=>{
               if(newLvl>prev){
                 const milestone = LEVEL_MILESTONES[newLvl]||null;
-                setTimeout(()=>setShowLevelUp({newLevel:newLvl, milestone}),1200);
+                setTimeout(()=>{setShowLevelUp({newLevel:newLvl, milestone});sfx.levelUp();},1200);
               }
               return newLvl;
             });
@@ -1714,6 +1739,7 @@ function Pallankuzhi() {
           });
           if(bonus>0) setStreakBonus({streak:newStreak, bonus});
           else setStreakBonus(null);
+          setLastCoinReward({coins:totalCoins, xp:xpReward});
           setCoinFlash(true);
           setTimeout(()=>setCoinFlash(false), 2000);
           if(bonus>0) setTimeout(()=>setStreakBonus(null), 3500);
@@ -1727,13 +1753,14 @@ function Pallankuzhi() {
         window._fbdb.ref('users/'+fbUser.uid+'/coins').transaction(v=>(v||0)+coinReward);
         window._fbdb.ref('users/'+fbUser.uid+'/xp').transaction(v=>(v||0)+xpReward);
         setCoins(c=>c+coinReward);
+        setLastCoinReward({coins:coinReward, xp:xpReward});
         setXp(x=>{
           const newXp = x+xpReward;
           const newLvl = getLevelFromXp(newXp);
           setLevel(prev=>{
             if(newLvl>prev){
               const milestone = LEVEL_MILESTONES[newLvl]||null;
-              setTimeout(()=>setShowLevelUp({newLevel:newLvl, milestone}),1200);
+              setTimeout(()=>{setShowLevelUp({newLevel:newLvl, milestone});sfx.levelUp();},1200);
             }
             return newLvl;
           });
@@ -2515,7 +2542,7 @@ function Pallankuzhi() {
       const entries=[];
       snap.forEach(child=>{
         const d=child.val();
-        entries.push({uid:child.key, name:d.name||"Player", wins:d.wins||0, coins:d.coins||0, photo:d.photo||null, xp:d.xp||0});
+        entries.push({uid:child.key, name:d.name||"Player", wins:d.wins||0, losses:d.losses||0, coins:d.coins||0, photo:d.photo||null, xp:d.xp||0});
       });
       setLeaderboardData(entries.reverse());
       setLeaderboardLoading(false);
@@ -2730,9 +2757,9 @@ function Pallankuzhi() {
                   <span style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,color:"#c8a040",textTransform:"uppercase",textAlign:"center",lineHeight:1.3}}>{authLoading?"Signing…":"Sign In"}</span>
                 </button>
               ) : (
-                /* Already signed in — show avatar + tap to play */
+                /* Already signed in — show avatar + tap to open profile */
                 <button
-                  onClick={(e)=>{e.stopPropagation();sfx.skipPlay();setIntroStep(2);}}
+                  onClick={(e)=>{e.stopPropagation();sfx.btnClick();setShowProfile(true);}}
                   style={{
                     flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,
                     padding:"18px 10px",borderRadius:18,cursor:"pointer",
@@ -2751,12 +2778,21 @@ function Pallankuzhi() {
                   <span style={{fontFamily:"Cinzel,serif",fontSize:9,letterSpacing:1,color:"#c8a040",textTransform:"uppercase",textAlign:"center",lineHeight:1.3,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {(fbUser.displayName||"Player").split(" ")[0]}
                   </span>
-                  <button
-                    onClick={(e)=>{e.stopPropagation();signOut();}}
-                    style={{fontSize:9,fontFamily:"Cinzel,serif",letterSpacing:1,color:"#7a3010",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:-4}}
-                    onMouseEnter={e=>e.currentTarget.style.color="#e06040"}
-                    onMouseLeave={e=>e.currentTarget.style.color="#7a3010"}
-                  >sign out</button>
+                  {/* Mini XP bar */}
+                  {(()=>{
+                    const xpForThisLevel = XP_FOR_LEVEL[Math.min(level-1,49)];
+                    const xpAtThisLevel  = getTotalXpForLevel(level);
+                    const pct = level>=50?100:Math.round(Math.min((xp-xpAtThisLevel)/xpForThisLevel,1)*100);
+                    return (
+                      <div style={{width:"100%",paddingTop:2}}>
+                        <div style={{height:4,borderRadius:2,background:"rgba(40,20,4,0.6)",overflow:"hidden"}}>
+                          <div style={{height:"100%",borderRadius:2,width:`${pct}%`,background:"linear-gradient(90deg,#6020a0,#c090ff)"}}/>
+                        </div>
+                        <div style={{fontFamily:"Cinzel,serif",fontSize:7,color:"#6040a0",textAlign:"center",marginTop:2,letterSpacing:0.5}}>Lv{level}</div>
+                      </div>
+                    );
+                  })()}
+                  <span style={{fontSize:8,fontFamily:"Cinzel,serif",letterSpacing:0.5,color:"#7a5020"}}>Profile</span>
                 </button>
               )}
             </div>
@@ -3467,7 +3503,7 @@ function Pallankuzhi() {
             transition:"all 0.4s",
             boxShadow:coinFlash?"0 0 16px rgba(255,200,0,0.6)":"none",
           }}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
               <span style={{fontSize:12}}>🪙</span>
               <span style={{fontFamily:"Cinzel,serif",fontSize:10,fontWeight:700,
                 color:coinFlash?"#ffe040":"#c8a040",letterSpacing:0,transition:"color 0.4s"}}>{coins}</span>
@@ -3482,7 +3518,7 @@ function Pallankuzhi() {
             background:"rgba(80,40,160,0.25)",border:"1.5px solid rgba(140,80,220,0.6)",
             boxShadow:level>=10?"0 0 10px rgba(140,80,220,0.4)":"none",
           }}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
               <span style={{fontSize:10}}>⭐</span>
               <span style={{fontFamily:"Cinzel,serif",fontSize:10,fontWeight:700,color:"#c090ff",letterSpacing:0}}>Lv{level}</span>
             </div>
@@ -3495,7 +3531,7 @@ function Pallankuzhi() {
             background:"rgba(200,80,10,0.2)",border:"1.5px solid rgba(255,100,30,0.6)",
             boxShadow:winStreak>=5?"0 0 12px rgba(255,100,20,0.5)":"none",
           }}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
               <span style={{fontSize:12}}>🔥</span>
               <span style={{fontFamily:"Cinzel,serif",fontSize:10,fontWeight:700,color:"#ff8040",letterSpacing:0}}>{winStreak}</span>
             </div>
@@ -3511,7 +3547,7 @@ function Pallankuzhi() {
             boxShadow:timerSeconds<=5?"0 0 16px rgba(255,60,40,0.6)":"none",
             transition:"all 0.4s",
           }}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",transform:isLandscape?"none":"rotate(90deg)"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
               <span style={{fontFamily:"Cinzel,serif",fontSize:13,fontWeight:700,
                 color:timerSeconds<=10?"#ff8060":"#c8a040",lineHeight:1}}>{timerSeconds}</span>
               <span style={{fontFamily:"Cinzel,serif",fontSize:7,color:"#5a3010",letterSpacing:0.5}}>SEC</span>
@@ -3531,7 +3567,7 @@ function Pallankuzhi() {
           onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
         >
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
             <span style={{fontSize:16}}>🏅</span>
             <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#c8a040",letterSpacing:0.5,lineHeight:1}}>RANK</span>
           </div>
@@ -3550,7 +3586,7 @@ function Pallankuzhi() {
           onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor=showThemePicker?"rgba(200,160,40,0.8)":"rgba(80,40,8,0.5)";}}
         >
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
             <span style={{fontSize:16}}>🎨</span>
             <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#c8a040",letterSpacing:0.5,lineHeight:1}}>THEME</span>
           </div>
@@ -3648,7 +3684,7 @@ function Pallankuzhi() {
           onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
         >
           {/* Fix #12: show current mode label below the icon so 3-state cycle is discoverable */}
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
             <span style={{color:"#c8a040",fontSize:14,lineHeight:1}}>{orient===null?"⊞":isLandscape?"⤡":"⤢"}</span>
             <span style={{color:"#7a5020",fontSize:7,letterSpacing:0.5,fontFamily:"Cinzel,serif",lineHeight:1}}>
               {orient===null?"AUTO":isLandscape?"LAND":"PORT"}
@@ -3678,9 +3714,27 @@ function Pallankuzhi() {
           onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
         >
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,transform:isLandscape?"none":"rotate(90deg)"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
             <span style={{color:"#c8a040",fontSize:16}}>{muteAudio?"🔇":"🔊"}</span>
             <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#7a5020",letterSpacing:0.5,lineHeight:1}}>{muteAudio?"MUTE":"SFX"}</span>
+          </div>
+        </div>
+        {/* Home button — returns to main menu */}
+        <div
+          onClick={()=>{sfx.pageBack();fullReset();setIntroStep(0);}}
+          title="Home"
+          style={{
+            width:40,height:40,borderRadius:"50%",flexShrink:0,
+            background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",transition:"all 0.2s",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+        >
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+            <span style={{color:"#c8a040",fontSize:16,lineHeight:1}}>🏠</span>
+            <span style={{fontFamily:"Cinzel,serif",fontSize:6,color:"#7a5020",letterSpacing:0.5,lineHeight:1}}>HOME</span>
           </div>
         </div>
         {/* Profile button — only shown when signed in */}
@@ -3705,8 +3759,8 @@ function Pallankuzhi() {
             }
           </div>
         )}
-        {/* Fix #22: Resign button — only in online/matchmaking, only mid-game, two-tap confirm */}
-        {(gameMode==="online"||gameMode==="matchmaking")&&!over&&introStep===4&&(
+        {/* Fix #22: Resign button — all modes, only mid-game, two-tap confirm */}
+        {!over&&introStep===4&&(
           <div
             onClick={()=>{
               if(!resignConfirm){
@@ -3722,16 +3776,20 @@ function Pallankuzhi() {
                 setBusy(false);
                 setAnim({lit:null,cap:null,relay:null});
                 setHandAnim({pit:null,pose:"hover",player:0});
-                if(connRef.current&&connRef.current.open) connRef.current.send({type:"resign"});
-                // Local side loses — opponent will receive "resign" and call setResult("win")
+                // Send resign to opponent only in online modes
+                if((gameMode==="online"||gameMode==="matchmaking")&&connRef.current&&connRef.current.open)
+                  connRef.current.send({type:"resign"});
+                // Local side loses
                 const b = board; const s = scores;
                 const totalShells = b.reduce((a,v)=>a+v,0);
-                const finalScores = [s[0], s[1]+totalShells];
+                const finalScores = gameMode==="pvp"
+                  ? [s[0], s[1]+totalShells]   // P2 wins
+                  : [s[0], s[1]+totalShells];   // opponent/AI wins
                 setBoard(Array(14).fill(0));
                 setScores(finalScores);
                 setOver(true);
                 setResult("lose");
-                setMsg("You resigned.");
+                setMsg(gameMode==="pvp"?"Player 1 resigned.":"You resigned.");
                 sfx.lose();
               }
             }}
@@ -3748,7 +3806,7 @@ function Pallankuzhi() {
             onMouseLeave={e=>{e.currentTarget.style.borderColor=resignConfirm?"rgba(255,80,60,0.8)":"rgba(80,40,8,0.5)";}}
           >
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-              <span style={{fontSize:resignConfirm?11:16,lineHeight:1,color:resignConfirm?"#ff6050":"#c8a040",display:"inline-block",transform:isLandscape?"none":"rotate(90deg)"}}>
+              <span style={{fontSize:resignConfirm?11:16,lineHeight:1,color:resignConfirm?"#ff6050":"#c8a040",display:"inline-block"}}>
                 {resignConfirm?"SURE?":"⚑"}
               </span>
             </div>
@@ -3795,6 +3853,96 @@ function Pallankuzhi() {
           }}/>}
         </div>
       </div>{}
+
+      {/* ── HOME SCREEN PROFILE OVERLAY ── */}
+      {showProfile && fbUser && (
+        <div
+          onClick={()=>setShowProfile(false)}
+          style={{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",animation:"introFadeIn 0.25s ease both"}}
+        >
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{width:"min(340px,92vw)",maxHeight:"88vh",borderRadius:24,background:"linear-gradient(145deg,rgba(22,8,0,0.99),rgba(8,2,0,0.99))",border:"2px solid rgba(200,160,40,0.55)",boxShadow:"0 0 80px rgba(160,100,8,0.25),0 24px 80px rgba(0,0,0,0.95)",padding:"28px 24px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,overflowY:"auto",position:"relative"}}
+          >
+            {/* Glow */}
+            <div style={{position:"absolute",width:220,height:220,borderRadius:"50%",background:"radial-gradient(ellipse,rgba(200,140,20,0.12),transparent 70%)",filter:"blur(32px)",pointerEvents:"none",top:"30%",left:"50%",transform:"translate(-50%,-50%)"}}/>
+            {/* Avatar */}
+            {fbUser.photoURL
+              ? <img src={fbUser.photoURL} style={{width:72,height:72,borderRadius:"50%",border:"3px solid rgba(200,160,40,0.8)",boxShadow:"0 4px 20px rgba(0,0,0,0.8)",position:"relative",zIndex:1}} alt="avatar"/>
+              : <div style={{width:72,height:72,borderRadius:"50%",background:"rgba(200,130,20,0.3)",border:"3px solid rgba(200,160,40,0.6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,position:"relative",zIndex:1}}>👤</div>
+            }
+            {/* Name + level */}
+            <div style={{textAlign:"center",position:"relative",zIndex:1}}>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:17,letterSpacing:3,color:"#c8a040",marginBottom:2}}>{fbUser.displayName||"Player"}</div>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"3px 12px",borderRadius:20,background:"rgba(80,40,160,0.25)",border:"1px solid rgba(140,80,220,0.5)"}}>
+                <span style={{fontSize:11}}>⭐</span>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:11,color:"#c090ff",letterSpacing:1}}>Level {level}{level>=50?" · Master":""}</span>
+              </div>
+            </div>
+            {/* XP progress bar */}
+            {(()=>{
+              const xpForThisLevel = XP_FOR_LEVEL[Math.min(level-1,49)];
+              const xpAtThisLevel  = getTotalXpForLevel(level);
+              const progress = level>=50?1:Math.min((xp-xpAtThisLevel)/xpForThisLevel,1);
+              return (
+                <div style={{width:"100%",position:"relative",zIndex:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <span style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#7a5030",fontStyle:"italic"}}>
+                      {level>=50?"MAX LEVEL":`${Math.max(0,xp-xpAtThisLevel)} / ${xpForThisLevel} XP`}
+                    </span>
+                    <span style={{fontFamily:"Cinzel,serif",fontSize:10,color:"#6040a0",letterSpacing:1}}>
+                      {level>=50?"🏆":"→ Lv"+(level+1)}
+                    </span>
+                  </div>
+                  <div style={{height:9,borderRadius:5,background:"rgba(60,30,8,0.6)",overflow:"hidden",border:"1px solid rgba(80,40,8,0.4)"}}>
+                    <div style={{height:"100%",borderRadius:5,width:`${Math.round(progress*100)}%`,background:"linear-gradient(90deg,#6020a0,#c090ff)",boxShadow:"0 0 8px rgba(160,100,255,0.6)",transition:"width 0.8s ease"}}/>
+                  </div>
+                  {level<50&&LEVEL_MILESTONES[Object.keys(LEVEL_MILESTONES).find(k=>Number(k)>level)]&&(
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#5a3810",fontStyle:"italic",marginTop:4,textAlign:"center"}}>
+                      🎁 Next milestone: Lv{Object.keys(LEVEL_MILESTONES).find(k=>Number(k)>level)} — {LEVEL_MILESTONES[Object.keys(LEVEL_MILESTONES).find(k=>Number(k)>level)].desc}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {/* W/L/D stats */}
+            <div style={{display:"flex",gap:0,width:"100%",borderRadius:14,overflow:"hidden",border:"1px solid rgba(160,90,10,0.3)",position:"relative",zIndex:1}}>
+              {[{label:"WINS",val:userStats.wins||0,color:"#60e090",bg:"rgba(20,60,20,0.4)",icon:"🏆"},{label:"LOSSES",val:userStats.losses||0,color:"#e06060",bg:"rgba(60,20,20,0.4)",icon:"💀"},{label:"DRAWS",val:userStats.draws||0,color:"#a0a060",bg:"rgba(40,40,20,0.4)",icon:"🤝"}].map(({label,val,color,bg,icon},i,arr)=>(
+                <div key={label} style={{flex:1,padding:"12px 4px",background:bg,display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRight:i<arr.length-1?"1px solid rgba(160,90,10,0.3)":"none"}}>
+                  <span style={{fontSize:18}}>{icon}</span>
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,color,lineHeight:1}}>{val}</span>
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:7,letterSpacing:2,color:"#5a3810"}}>{label}</span>
+                </div>
+              ))}
+            </div>
+            {/* Coins + streak row */}
+            <div style={{display:"flex",gap:10,width:"100%",position:"relative",zIndex:1}}>
+              {[{icon:"🪙",val:coins,label:"COINS",color:"#ffe040"},{icon:"🔥",val:winStreak,label:"STREAK",color:"#ff8040"},{icon:"📅",val:loginStreak,label:"DAYS",color:"#80e0c0"}].map(({icon,val,label,color})=>(
+                <div key={label} style={{flex:1,padding:"10px 4px",background:"rgba(20,10,0,0.5)",borderRadius:12,border:"1px solid rgba(80,40,8,0.4)",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                  <span style={{fontSize:16}}>{icon}</span>
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:17,fontWeight:700,color,lineHeight:1}}>{val}</span>
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:7,letterSpacing:2,color:"#5a3810"}}>{label}</span>
+                </div>
+              ))}
+            </div>
+            {/* Action buttons */}
+            <div style={{display:"flex",gap:10,width:"100%",position:"relative",zIndex:1,marginTop:2}}>
+              <button
+                onClick={()=>{setShowProfile(false);sfx.skipPlay();setIntroStep(2);}}
+                style={{flex:2,padding:"13px",borderRadius:20,cursor:"pointer",fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",color:"#c8a040",background:"linear-gradient(135deg,rgba(80,34,4,0.95),rgba(28,10,0,0.98))",border:"1.5px solid rgba(160,90,10,0.7)",boxShadow:"0 4px 20px rgba(0,0,0,0.7)",transition:"all 0.22s"}}
+                onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";}}
+              >▶ Play</button>
+              <button
+                onClick={()=>{signOut();setShowProfile(false);}}
+                style={{flex:1,padding:"13px",borderRadius:20,cursor:"pointer",fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:2,color:"#e06060",background:"transparent",border:"1px solid rgba(180,60,40,0.4)",transition:"all 0.2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(220,80,60,0.7)";e.currentTarget.style.color="#ff8060";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(180,60,40,0.4)";e.currentTarget.style.color="#e06060";}}
+              >Sign Out</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── IN-GAME PROFILE OVERLAY ── */}
       {showInGameProfile && fbUser && (
@@ -4045,9 +4193,10 @@ function Pallankuzhi() {
                       </div>
                       <div style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#5a3810"}}>🪙 {p.coins||0} coins</div>
                     </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontFamily:"Cinzel,serif",fontSize:16,fontWeight:700,color:"#60e090"}}>{p.wins}</div>
-                      <div style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#3a2008"}}>wins</div>
+                    <div style={{textAlign:"right",minWidth:48}}>
+                      <div style={{fontFamily:"Cinzel,serif",fontSize:14,fontWeight:700,color:"#60e090"}}>{p.wins}</div>
+                      <div style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#e06060"}}>{p.losses>0?`${Math.round((p.wins/(p.wins+p.losses))*100)}% WR`:p.wins>0?"100% WR":"—"}</div>
+                      <div style={{fontFamily:"Crimson Text,serif",fontSize:9,color:"#3a2008"}}>{p.wins}W / {p.losses}L</div>
                     </div>
                   </div>
                 ))}
@@ -4181,7 +4330,7 @@ function Pallankuzhi() {
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 16px",borderRadius:20,background:"rgba(255,200,40,0.1)",border:"1px solid rgba(200,160,30,0.4)"}}>
                   <span style={{fontSize:16}}>🪙</span>
-                  <span style={{fontFamily:"Cinzel,serif",fontSize:12,color:"#ffe040",letterSpacing:1}}>+{result==="win"?50:result==="draw"?10:5} coins &nbsp;·&nbsp; +{result==="win"?80:result==="draw"?20:10} XP</span>
+                  <span style={{fontFamily:"Cinzel,serif",fontSize:12,color:"#ffe040",letterSpacing:1}}>+{lastCoinReward.coins} coins &nbsp;·&nbsp; +{lastCoinReward.xp} XP</span>
                 </div>
                 {streakBonus&&result==="win"&&(
                   <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 16px",borderRadius:20,background:"rgba(255,140,20,0.15)",border:"1px solid rgba(255,120,20,0.5)",animation:"pulse 0.6s ease"}}>
@@ -4195,6 +4344,23 @@ function Pallankuzhi() {
                     <span style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#c87040",fontStyle:"italic"}}>{winStreak} win streak</span>
                   </div>
                 )}
+                {fbUser&&winStreak>0&&(()=>{
+                  const next = winStreak<3?3:winStreak<5?5:winStreak<10?10:Math.ceil(winStreak/5)*5+5;
+                  const prev = winStreak<3?0:winStreak<5?3:winStreak<10?5:Math.floor(winStreak/5)*5;
+                  const pct = Math.min(100,Math.round(((winStreak-prev)/(next-prev))*100));
+                  const nextBonus = next===3?30:next===5?75:next===10?200:100;
+                  return (
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"4px 12px",borderRadius:16,background:"rgba(255,100,20,0.06)",border:"1px solid rgba(200,80,10,0.2)",width:"80%"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",width:"100%"}}>
+                        <span style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#7a5020"}}>🔥 {winStreak} streak</span>
+                        <span style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"#c87040"}}>Next: {next} wins → +{nextBonus} 🪙</span>
+                      </div>
+                      <div style={{width:"100%",height:4,background:"rgba(80,40,8,0.4)",borderRadius:2,overflow:"hidden"}}>
+                        <div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#c84010,#ff8040)",borderRadius:2,transition:"width 0.6s"}}/>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             <div style={{display:"flex",alignItems:"center",gap:10,width:"80%",margin:"4px 0"}}>
@@ -4264,7 +4430,7 @@ function Pallankuzhi() {
             >Play Again</button>
             )}
             <button
-              onClick={()=>{sfx.pageBack();fullReset();setIntroStep(2);}}
+              onClick={()=>{sfx.pageBack();fullReset();setIntroStep(0);}}
               style={{
                 padding:"10px 32px",borderRadius:30,
                 fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",
