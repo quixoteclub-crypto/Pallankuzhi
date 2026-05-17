@@ -34,11 +34,19 @@ jobs:
           npx cap sync android
       - name: Print SHA-1 fingerprint
         run: |
+          keytool -genkey -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
           keytool -list -v \
             -keystore ~/.android/debug.keystore \
             -alias androiddebugkey \
-            -storepass android \
-            -keypass android | grep SHA1
+            -storepass android | grep SHA1
       - name: Fix Kotlin stdlib conflict
         run: |
           cat >> android/app/build.gradle << 'EOF'
