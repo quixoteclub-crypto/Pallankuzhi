@@ -22,28 +22,6 @@ Whether you grew up playing this game on your grandmother's porch or are discove
 
 ---
 
-## 📋 Version History
-
-### v2.0 (May 2026) — Current
-- Fix #31: Cancel RAF on unmount — prevents setState on unmounted component
-- Fix #32: Collect and cancel all animation timers on reset/unmount
-- Fix #33: Guest rematch shows spinner + "Waiting for host" instead of broken state
-- Fix #36: Orientation lock 3-state cycle fixed (auto → landscape → portrait → auto)
-- Fix #37: Opponent disconnect now ends game gracefully with win awarded to remaining player
-- Fix BUG15: Firebase matchmaking listener cleanup using correct query ref
-- Fix: Viewport scale now accounts for both width and height for small screens
-- Fix: Game room code always exactly 4 alphanumeric characters
-- Fix: Music restarts correctly when unmuting on menu screens
-- Fix: Connection error now shows proper error type and ends game cleanly
-- Fix: Animation stopped before showing win/lose overlay in all paths
-- Fix: preserveAspectRatio="none" on board SVG for correct stretch behaviour
-
-### v1.0 (May 2026)
-- Initial release with AI, PvP, online multiplayer
-- PWA support, Firebase Realtime Database, PeerJS P2P
-
----
-
 ## 🚀 Deployment
 
 See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for full hosting instructions.
