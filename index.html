@@ -37,9 +37,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #050f0e; }
@@ -68,18 +68,24 @@
     // Firebase console before going to production.
     firebase.initializeApp({
       apiKey: "AIzaSyDUylqivPJj7Eq45-C_3sanePJI99YXH6s",
-      authDomain: "pallankuzhi-53823.firebaseapp.com",
-      // Note: For Capacitor Android, also add "localhost" to authorized domains in Firebase Console
+      authDomain: window.location.hostname === 'quixoteclub-crypto.github.io'
+        ? 'quixoteclub-crypto.github.io'
+        : 'pallankuzhi-53823.firebaseapp.com',
       databaseURL: "https://pallankuzhi-53823-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "pallankuzhi-53823",
       storageBucket: "pallankuzhi-53823.firebasestorage.app",
       messagingSenderId: "229853157993",
       appId: "1:229853157993:web:5d0f038bcd94743960e0f8"
     });
-    // App Check — only activate for native Capacitor app
+    // App Check — detect environment and activate accordingly
     (function() {
       var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
       if (isNative) {
+        // Running inside Capacitor (Android/iOS native app)
+        // Use debug token for development/testing.
+        // IMPORTANT: Remove this debug token before publishing to Play Store
+        // and replace with Play Integrity provider via the native SDK.
         firebase.appCheck().activate(
           new firebase.appCheck.CustomProvider({
             getToken: function() {
@@ -90,22 +96,23 @@
           }),
           true
         );
+      } else {
+        // Web: skip App Check — Auth handles its own security via OAuth
       }
-      // Web: App Check disabled — Auth uses its own OAuth security
     })();
     window._fbdb = firebase.database();
     window._fbauth = firebase.auth();
     window._fbuser = null;
+    // Handle redirect result on page load
     window._fbRedirectDone = false;
-    // Fix: Handle redirect sign-in result on page load (required for mobile/redirect flow)
     window._fbauth.useDeviceLanguage();
+    // Check redirect result FIRST before onAuthStateChanged fires
     window._fbauth.getRedirectResult().then(function(result) {
       if (result && result.user) {
-        window._fbRedirectDone = true;
-        if(window._onAuthChange) window._onAuthChange(result.user, true);
+        window._fbRedirectDone = true; // flag stays true until React reads it
       }
     }).catch(function(err) {
-      console.error('Redirect sign-in error:', err.code, err.message);
+      console.error('Redirect error:', err.code, err.message);
     });
     window._fbauth.onAuthStateChanged(function(user) {
       window._fbuser = user;
@@ -129,8 +136,8 @@
           }
         });
       }
-      // Notify React
-      if (window._onAuthChange) window._onAuthChange(user);
+      // Pass fromRedirect flag so React knows to navigate to game
+      if (window._onAuthChange) window._onAuthChange(user, window._fbRedirectDone);
     });
   </script>
 </head>
@@ -1690,11 +1697,7 @@ function Pallankuzhi() {
     // Fix: use redirect on mobile (popup gets blocked by Chrome on Android)
     // authLoading is cleared by _onAuthChange on return; add timeout as safety net
     if (isNative || isMobile) {
-      window._fbauth.signInWithRedirect(provider).catch(function(err){
-          console.error("signInWithRedirect error:", err.code, err.message);
-          alert("Sign-in error: " + err.code + " - " + err.message);
-          setAuthLoading(false);
-        });
+      window._fbauth.signInWithRedirect(provider);
       setTimeout(()=>setAuthLoading(false), 10000); // safety: unblock after 10s if redirect fails
     } else {
       window._fbauth.signInWithPopup(provider)
@@ -2147,7 +2150,11 @@ function Pallankuzhi() {
     const db = window._fbdb;
 
     // Fix App Check timing: wait for a valid token before any Firebase read
-    firebase.appCheck().getToken(false)
+    // On web, App Check is disabled so we skip the token check
+    const _appCheckPromise = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+      ? firebase.appCheck().getToken(false)
+      : Promise.resolve();
+    _appCheckPromise
       .then(()=>{
         const peer = new Peer();
         peerRef.current = peer;
@@ -2762,14 +2769,22 @@ function Pallankuzhi() {
                     sfx.btnClick();
                     setAuthLoading(true);
                     const provider = new firebase.auth.GoogleAuthProvider();
-                    provider.addScope('email');
-                    provider.addScope('profile');
-                    // Always use redirect — works on both mobile Chrome and Capacitor WebView
-                    window._fbauth.signInWithRedirect(provider).catch(function(err){
-          console.error("signInWithRedirect error:", err.code, err.message);
-          alert("Sign-in error: " + err.code + " - " + err.message);
-          setAuthLoading(false);
-        });
+                    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                    // Fix: use redirect on mobile (popup gets blocked by Chrome on Android)
+                    if (isNative || isMobile) {
+                      window._fbauth.signInWithRedirect(provider)
+                        .catch((err)=>{
+                          console.error('Redirect failed:', err.code, err.message);
+                          alert('Sign-in error: ' + err.code);
+                          setAuthLoading(false);
+                        });
+                    } else {
+                      window._fbauth.signInWithPopup(provider)
+                        .then((result)=>{ if(result && result.user) setIntroStep(2); })
+                        .catch((err)=>{ console.error('Popup failed:', err.code); })
+                        .finally(()=>setAuthLoading(false));
+                    }
                   }}
                   disabled={authLoading}
                   style={{
