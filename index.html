@@ -69,6 +69,7 @@
     firebase.initializeApp({
       apiKey: "AIzaSyDUylqivPJj7Eq45-C_3sanePJI99YXH6s",
       authDomain: "pallankuzhi-53823.firebaseapp.com",
+      // Note: For Capacitor Android, also add "localhost" to authorized domains in Firebase Console
       databaseURL: "https://pallankuzhi-53823-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "pallankuzhi-53823",
       storageBucket: "pallankuzhi-53823.firebasestorage.app",
@@ -2760,18 +2761,21 @@ function Pallankuzhi() {
                     sfx.btnClick();
                     setAuthLoading(true);
                     const provider = new firebase.auth.GoogleAuthProvider();
-                    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                    // Fix: use redirect on mobile (popup gets blocked by Chrome on Android)
-                    if (isNative || isMobile) {
-                      window._fbauth.signInWithRedirect(provider);
-                      setTimeout(()=>setAuthLoading(false), 10000);
-                    } else {
-                      window._fbauth.signInWithPopup(provider)
-                        .then(()=>{ setIntroStep(2); })
-                        .catch(()=>{})
-                        .finally(()=>setAuthLoading(false));
-                    }
+                    provider.addScope('email');
+                    provider.addScope('profile');
+                    // Always use popup — redirect doesn't work reliably in Capacitor WebView
+                    window._fbauth.signInWithPopup(provider)
+                      .then((result)=>{
+                        if(result && result.user) setIntroStep(2);
+                      })
+                      .catch((err)=>{
+                        console.error('Sign-in error:', err.code, err.message);
+                        // If popup blocked, fall back to redirect
+                        if(err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+                          window._fbauth.signInWithRedirect(provider);
+                        }
+                      })
+                      .finally(()=>setAuthLoading(false));
                   }}
                   disabled={authLoading}
                   style={{
