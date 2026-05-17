@@ -76,28 +76,10 @@
       messagingSenderId: "229853157993",
       appId: "1:229853157993:web:5d0f038bcd94743960e0f8"
     });
-    // App Check — detect environment and activate accordingly
+    // App Check — only activate for native Capacitor app
     (function() {
       var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-
       if (isNative) {
-        // Running inside Capacitor (Android/iOS native app)
-        // Use debug token for development/testing.
-        // IMPORTANT: Remove this debug token before publishing to Play Store
-        // and replace with Play Integrity provider via the native SDK.
-        firebase.appCheck().activate(
-          new firebase.appCheck.CustomProvider({
-            getToken: function() {
-              return Promise.resolve({
-                token: 'E906B3E9-2026-4F49-A302-9AAE531693BA'
-              });
-            }
-          }),
-          true
-        );
-      } else {
-        // Web: use debug token during development (same as native)
-        // TODO: Replace with proper reCAPTCHA site key once registered for all domains
         firebase.appCheck().activate(
           new firebase.appCheck.CustomProvider({
             getToken: function() {
@@ -109,6 +91,7 @@
           true
         );
       }
+      // Web: App Check disabled — Auth uses its own OAuth security
     })();
     window._fbdb = firebase.database();
     window._fbauth = firebase.auth();
