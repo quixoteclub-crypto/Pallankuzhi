@@ -78,8 +78,9 @@
     // App Check — detect environment and activate accordingly
     (function() {
       var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      var isGitHubPages = location.hostname === 'quixoteclub-crypto.github.io';
 
-      if (isNative) {
+      if (isNative || isGitHubPages) {
         // Running inside Capacitor (Android/iOS native app)
         // Use debug token for development/testing.
         // IMPORTANT: Remove this debug token before publishing to Play Store
@@ -463,6 +464,7 @@ function _ca() {
         o2.connect(g2); o2.start(t + dt); o2.stop(t + dt + 0.3);
       });
     },
+    btnClick() {
       if(_isMuted()) return;
       const c = getCtx(), t = c.currentTime;
       const g = c.createGain(); g.connect(c.destination);
