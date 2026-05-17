@@ -1,81 +1,43 @@
 name: Build Android APK
-
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # allows manual trigger from GitHub Actions tab
-
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1 — Get the code
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Step 2 — Setup Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      # Step 3 — Setup Java (required for Android builds)
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      # Step 4 — Setup Android SDK
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      # Step 5 — Install Capacitor
+      - uses: android-actions/setup-android@v3
       - name: Install Capacitor
+        run: npm install @capacitor/core @capacitor/android @capacitor/cli
+      - name: Copy files to www/
         run: |
-          npm install @capacitor/core @capacitor/android @capacitor/cli
-
-      # Step 6 — Create capacitor.config.json
+          mkdir -p www/icons
+          cp index.html manifest.json sw.js www/
+          cp icons/*.png www/icons/
       - name: Create Capacitor config
         run: |
-          cat > capacitor.config.json << 'EOF'
-          {
-            "appId": "com.quixoteclub.pallankuzhi",
-            "appName": "Pallankuzhi",
-            "webDir": ".",
-            "server": {
-              "androidScheme": "https"
-            },
-            "android": {
-              "backgroundColor": "#0a0300"
-            }
-          }
-          EOF
-
-      # Step 7 — Add Android platform
-      - name: Add Android platform
-        run: npx cap add android
-
-      # Step 8 — Sync web files into Android project
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      # Step 9 — Make gradlew executable
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
-
-      # Step 10 — Build debug APK
-      - name: Build Debug APK
+          echo '{"appId":"com.quixoteclub.pallankuzhi","appName":"Pallankuzhi","webDir":"www","server":{"androidScheme":"https"},"android":{"backgroundColor":"#0a0300"}}' > capacitor.config.json
+      - name: Add Android & sync
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Build APK
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-
-      # Step 11 — Upload APK as downloadable artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Pallankuzhi-debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
-          
