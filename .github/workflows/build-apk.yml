@@ -32,19 +32,37 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
-      - name: Print SHA-1 fingerprint
+      - name: Add google-services.json
         run: |
-          mkdir -p ~/.android
-          keytool -genkey -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
-          keytool -list -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -storepass android | grep SHA1
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+      - name: Fix Kotlin stdlib conflict
+        run: |
+          cat >> android/app/build.gradle << 'EOF'
+
+          configurations.all {
+              resolutionStrategy {
+                  force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'
+                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10'
+                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10'
+              }
+          }
+          EOF
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Pallankuzhi v${{ github.run_number }}
+          body: |
+            🐚 Pallankuzhi Android APK
+            Built automatically from latest code.
+            Download and install the APK below.
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          fail_on_unmatched_files: false
+          overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
