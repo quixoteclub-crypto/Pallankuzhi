@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@v3
       - name: Install Capacitor
         run: npm install @capacitor/core @capacitor/android @capacitor/cli
@@ -26,6 +26,8 @@ jobs:
       - name: Create Capacitor config
         run: |
           echo '{"appId":"com.quixoteclub.pallankuzhi","appName":"Pallankuzhi","webDir":"www","server":{"androidScheme":"https"},"android":{"backgroundColor":"#0a0300"}}' > capacitor.config.json
+      - name: Init npm
+        run: npm init -y
       - name: Add Android & sync
         run: |
           npx cap add android
