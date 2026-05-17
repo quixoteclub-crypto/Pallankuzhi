@@ -14,12 +14,12 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@v3
       - name: Init npm
         run: npm init -y
       - name: Install Capacitor
-        run: npm install @capacitor/core@5.7.0 @capacitor/android@5.7.0 @capacitor/cli@5.7.0
+        run: npm install @capacitor/core @capacitor/android @capacitor/cli
       - name: Copy files to www/
         run: |
           mkdir -p www/icons
@@ -32,6 +32,18 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+      - name: Fix Kotlin stdlib conflict
+        run: |
+          cat >> android/app/build.gradle << 'EOF'
+
+          configurations.all {
+              resolutionStrategy {
+                  force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'
+                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10'
+                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10'
+              }
+          }
+          EOF
       - name: Build APK
         run: |
           cd android
