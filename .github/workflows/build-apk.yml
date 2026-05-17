@@ -14,10 +14,12 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'
       - uses: android-actions/setup-android@v3
+      - name: Init npm
+        run: npm init -y
       - name: Install Capacitor
-        run: npm install @capacitor/core @capacitor/android @capacitor/cli
+        run: npm install @capacitor/core@5.7.0 @capacitor/android@5.7.0 @capacitor/cli@5.7.0
       - name: Copy files to www/
         run: |
           mkdir -p www/icons
@@ -26,22 +28,10 @@ jobs:
       - name: Create Capacitor config
         run: |
           echo '{"appId":"com.quixoteclub.pallankuzhi","appName":"Pallankuzhi","webDir":"www","server":{"androidScheme":"https"},"android":{"backgroundColor":"#0a0300"}}' > capacitor.config.json
-      - name: Init npm
-        run: npm init -y
       - name: Add Android & sync
         run: |
           npx cap add android
           npx cap sync android
-      - name: Fix Kotlin duplicate class error
-        run: |
-          echo "" >> android/build.gradle
-          echo "configurations.all {" >> android/build.gradle
-          echo "    resolutionStrategy {" >> android/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'" >> android/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10'" >> android/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10'" >> android/build.gradle
-          echo "    }" >> android/build.gradle
-          echo "}" >> android/build.gradle
       - name: Build APK
         run: |
           cd android
