@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Contact Us — Pallankuzhi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital,wght@0,400;1,400&display=swap" rel="stylesheet"/>
+  <!-- Vercel Speed Insights -->
+  <script type="module">
+    import { injectSpeedInsights } from 'https://cdn.jsdelivr.net/npm/@vercel/speed-insights@1/dist/index.mjs';
+    injectSpeedInsights();
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0300; --bg2: #120600;
+      --gold: #c8a040; --gold-dim: #7a5820;
+      --text: #d4b88a; --text-dim: #7a5830;
+      --border: rgba(180,120,30,0.25);
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Crimson Text', Georgia, serif;
+      font-size: 18px;
+      line-height: 1.75;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--gold);
+      margin-bottom: 8px;
+    }
+    .subtitle { font-style: italic; color: var(--gold-dim); margin-bottom: 40px; font-size: 16px; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+    h2 { font-family: 'Cinzel', serif; font-size: 17px; letter-spacing: 2px; color: var(--gold); margin-bottom: 12px; }
+    p { margin-bottom: 16px; }
+    .contact-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+    }
+    .contact-item { display:flex; align-items:flex-start; gap:16px; margin-bottom:20px; }
+    .contact-item:last-child { margin-bottom:0; }
+    .icon { font-size:24px; flex-shrink:0; margin-top:2px; }
+    .label { font-family:'Cinzel',serif; font-size:13px; letter-spacing:2px; color:var(--gold-dim); margin-bottom:4px; }
+    .value { color:var(--text); }
+    .value a { color:var(--gold); text-decoration:none; }
+    .value a:hover { text-decoration:underline; }
+    .back {
+      display:inline-block; margin-top:40px;
+      font-family:'Cinzel',serif; font-size:13px; letter-spacing:2px;
+      color:var(--gold-dim); text-decoration:none;
+      border:1px solid var(--border); padding:10px 24px; border-radius:30px; transition:all 0.2s;
+    }
+    .back:hover { color:var(--gold); border-color:var(--gold); }
+    .nav { display:flex; gap:20px; margin-bottom:40px; flex-wrap:wrap; }
+    .nav a { color:var(--gold-dim); text-decoration:none; font-family:'Cinzel',serif; font-size:13px; letter-spacing:2px; transition:color 0.2s; }
+    .nav a:hover { color:var(--gold); }
+    .response-note {
+      background:rgba(200,160,64,0.06);
+      border-left:3px solid var(--gold-dim);
+      padding:16px 20px;
+      border-radius:0 12px 12px 0;
+      font-style:italic;
+      color:var(--text-dim);
+      font-size:16px;
+      margin-top:24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="nav">
+      <a href="/">🏠 Home</a>
+      <a href="/about.html">About Us</a>
+      <a href="/privacy-policy.html">Privacy Policy</a>
+    </nav>
+
+    <h1>Contact Us</h1>
+    <p class="subtitle">We'd love to hear from you — feedback, bugs, or just to say hello!</p>
+
+    <hr class="divider"/>
+
+    <div class="contact-card">
+      <div class="contact-item">
+        <span class="icon">📧</span>
+        <div>
+          <div class="label">Email</div>
+          <div class="value">
+            <a href="mailto:quixoteclub.crypto@gmail.com">quixoteclub.crypto@gmail.com</a>
+          </div>
+        </div>
+      </div>
+      <div class="contact-item">
+        <span class="icon">🌐</span>
+        <div>
+          <div class="label">Website</div>
+          <div class="value">
+            <a href="https://pallankuzhi.netlify.app" target="_blank">pallankuzhi.netlify.app</a>
+          </div>
+        </div>
+      </div>
+      <div class="contact-item">
+        <span class="icon">🏢</span>
+        <div>
+          <div class="label">Organization</div>
+          <div class="value">Quixote Club · Tamil Nadu, India</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>What to Write About</h2>
+    <p>We welcome messages about:</p>
+    <p>
+      🐛 <strong>Bug reports</strong> — something not working right?<br/>
+      💡 <strong>Suggestions</strong> — ideas for new features?<br/>
+      🎮 <strong>Feedback</strong> — how's your game experience?<br/>
+      🤝 <strong>Partnerships</strong> — want to collaborate?<br/>
+      📢 <strong>Press inquiries</strong> — writing about traditional games?
+    </p>
+
+    <div class="response-note">
+      We typically respond within 2–3 business days. Thank you for your patience!
+    </div>
+
+    <hr class="divider"/>
+    <a href="/" class="back">← Play Pallankuzhi</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,3398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>பல்லாங்குழி — Pallankuzhi</title>
+    <!-- © 2026 Quixote Club. All Rights Reserved. -->
+  <!-- Original Developer. Unauthorized use prohibited. -->
+  <meta name="copyright" content="© 2026 Quixote Club Game. All rights reserved."/>
+  <meta name="author" content="Quixote Club"/>
+  <meta name="description" content="Play Pallankuzhi — an ancient Tamil board game of sowing and strategy. Play against AI in your browser."/>
+  <!-- PWA: Manifest -->
+  <link rel="manifest" href="manifest.json"/>
+
+  <!-- PWA: Theme & status bar -->
+  <meta name="theme-color" content="#0a0300"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Pallankuzhi"/>
+
+  <!-- PWA: Apple touch icon (fallback) -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+
+  <!-- PWA: Splash / OG -->
+  <meta property="og:title" content="பல்லாங்குழி — Pallankuzhi"/>
+  <meta property="og:description" content="Play Pallankuzhi — an ancient Tamil board game of sowing and strategy."/>
+  <meta property="og:image" content="icons/icon-512.png"/>
+  <meta property="og:type" content="website"/>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Noto+Sans+Tamil:wght@400;700&display=swap" rel="stylesheet"/>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0a0300; }
+    #root { height: 100vh; overflow: hidden; }
+  </style>
+  <script>
+    // © 2026 Quixote Club - All Rights Reserved
+    (function(){
+      var w = '© 2026 Quixote Club. All Rights Reserved.';
+      var x = 'Unauthorized copying or redistribution is strictly prohibited.';
+      var y = 'This game is protected by copyright law.';
+      console.log('%c' + w, 'color:#c8a040;font-size:18px;font-weight:bold;');
+      console.log('%c' + x, 'color:#ff4444;font-size:13px;');
+      console.log('%c' + y, 'color:#ff4444;font-size:13px;');
+      Object.defineProperty(document, '_owner', {value:'Quixote Club', writable:false});
+    })();
+  </script>
+  <script>
+    // Fix #1 (SECURITY NOTE): Firebase client credentials are intentionally visible in
+    // front-end code — this is standard for Firebase web apps. Security relies on:
+    //   (a) Firebase Security Rules restricting database read/write per user,
+    //   (b) App Check (reCAPTCHA v3) preventing automated abuse, and
+    //   (c) Domain restrictions on the apiKey in Google Cloud Console.
+    // ACTION REQUIRED: Ensure your Firebase Realtime Database rules are locked down
+    // (not "allow read, write: if true") and App Check enforcement is enabled in the
+    // Firebase console before going to production.
+    firebase.initializeApp({
+      apiKey: "AIzaSyDUylqivPJj7Eq45-C_3sanePJI99YXH6s",
+      authDomain: "pallankuzhi-53823.firebaseapp.com",
+      databaseURL: "https://pallankuzhi-53823-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "pallankuzhi-53823",
+      storageBucket: "pallankuzhi-53823.firebasestorage.app",
+      messagingSenderId: "229853157993",
+      appId: "1:229853157993:web:5d0f038bcd94743960e0f8"
+    });
+    // App Check — detect environment and activate accordingly
+    (function() {
+      var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+      if (isNative) {
+        // Running inside Capacitor (Android/iOS native app)
+        // Use debug token for development/testing.
+        // IMPORTANT: Remove this debug token before publishing to Play Store
+        // and replace with Play Integrity provider via the native SDK.
+        firebase.appCheck().activate(
+          new firebase.appCheck.CustomProvider({
+            getToken: function() {
+              return Promise.resolve({
+                token: 'E906B3E9-2026-4F49-A302-9AAE531693BA'
+              });
+            }
+          }),
+          true
+        );
+      } else {
+        // Running in a web browser — use reCAPTCHA v3 as before
+        firebase.appCheck().activate(
+          '6LcxZe0sAAAAA3ZxVE36t55y8KzlaDl48s6F9ML',
+          true // auto-refresh tokens silently
+        );
+      }
+    })();
+    window._fbdb = firebase.database();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <noscript>
+    <h1>Pallankuzhi — பல்லாங்குழி</h1>
+    <p>An ancient Tamil board game of sowing, strategy, and capture. Play against AI or a friend directly in your browser — no download needed.</p>
+    <p>Pallankuzhi is a traditional two-player mancala-style game from Tamil Nadu, India. Players sow cowrie shells across 14 pits and use strategy to capture their opponent's seeds and win.</p>
+    <p>Features: Play vs AI, Play vs Friend (PvP), 3 shell count modes (6, 12, 24 shells), animated board, sound effects, and full mobile support.</p>
+    <p>This game works as a Progressive Web App (PWA) — you can install it on your home screen for offline play.</p>
+    <a href="/about.html">About Us</a> · <a href="/contact.html">Contact</a> · <a href="/privacy-policy.html">Privacy Policy</a>
+  </noscript>
+  <script type="text/babel">
+/* © 2026 Quixote Club Game. All rights reserved. Unauthorized copying, modification or distribution is prohibited. Built by the original developer. */
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* =============================================================
+   Fix #15 — VARIABLE NAME LEGEND
+   All short/obfuscated names explained here for maintainability.
+   ---------------------------------------------------------------
+   HOOKS
+     _ula()        → useLiveAnnouncer   — returns [announceText, announce(text)]
+                     for screen-reader aria-live updates
+     _uprm()       → usePrefersReducedMotion — returns bool from media query
+
+   AUDIO
+     _ca()         → createAudio — builds and returns the sfx engine object
+
+   GAME CONSTANTS
+     _FH           → forbiddenHole (index 3)  — player 0's forbidden pit
+     _FA           → forbiddenAlt  (index 10) — player 1's forbidden pit
+     OVAL          → the 14-pit traversal order (0→6, then 13→7)
+     _oix          → ovalIndex map — pit number → position in OVAL array
+     _FH/_FA pits hold shells that may be claimed at game end
+
+   GAME LOGIC FUNCTIONS
+     _ib(count)    → initBoard — returns a fresh 14-pit board with `count` shells each
+     _lm(b, p)     → legalMoves — returns playable pit indices for player p
+     _st(b,s,p,c)  → simulateTurn — returns animation steps for a move from pit s
+     _aiB(b, c)    → aiBestMove — greedy AI: picks highest-scoring legal move
+     _pf           → pitsBeforeForbidden — array of pits one step before each forbidden pit
+                     (relay stops here)
+     _ppf          → pitsTwoBeforeForbidden — two steps before each forbidden pit
+     _cf           → capturedForbidden — which forbidden pit was "entered" this turn
+
+   COMPONENT SHORTHANDS
+     _PS           → PitShells — SVG cowrie layout renderer inside each pit
+     _RH           → RenderHand — the emoji hand (✊ / 🫳) shown during animation
+     _HOB          → HandOverBoard — positions _RH over the active pit
+     _FS           → FlySeeds — animates shells flying from hand to pit (FlyArc)
+     _KBH          → KolamBorderHeader — decorative SVG border strip
+     _L8           → Lotus8 — 8-petal SVG lotus decoration on the board border
+     _L6           → Lotus6 — 6-petal SVG lotus decoration on the board border
+     _DU           → DiamondUnit — diamond SVG decoration on the board border
+
+   COMPONENT STATE (inside Pallankuzhi)
+     _br           → busyRef — ref flag: true while animation is running
+     _tr           → timerRef — ref to the current step setTimeout handle
+     _fsi          → flySeedException — incrementing ID for FlyArc events
+     _llp          → lastLandedPit — ref tracking which pit the hand is over
+     _fc           → forbiddenClaimants — tracks which players "entered" each forbidden pit
+     _hc           → humanColumn — array [0..6], player 0's pit indices
+     _ac           → aiColumn    — array [7..13], player 1's pit indices
+     _mb           → mainBackground — dynamic board background color
+     _mbd          → mainBorderColor — dynamic board border color
+     _mc           → mainColor — dynamic board accent color
+     _sra          → screenReaderAnnounce — current text for aria-live region
+     _rm           → reducedMotion — bool from _uprm()
+
+   ANIMATION CALLBACKS (inside Pallankuzhi)
+     _rA           → runAnimation — steps through simulation steps with timing
+     _hC           → handleClick — processes a pit click for a given player
+     _finT         → finishTurn — switches turn or ends game after move completes
+     _endG         → endGame — tallies final scores including forbidden pit shells
+
+   ONLINE / REFS
+     _boardRef     → live ref mirror of board state (for _remoteMoveRef callback)
+     _scoresRef    → live ref mirror of scores
+     _turnRef      → live ref mirror of turn
+     _overRef      → live ref mirror of over
+     _shellCountRef → live ref mirror of shellCount
+     _remoteMoveRef → ref-based callback replacing window._onlineRemoteMove
+     _rematchRef   → ref-based callback replacing window._onlineRematch
+     _prevAutoOrient → ref tracking last orientation to detect true flips
+   =============================================================
+*/
+function _ula() {
+  const [announce, setAnnounce] = useState("");
+  const timerRef = useRef(null);
+  const announce_ = useCallback((text) => {
+    setAnnounce("");
+    if(timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setAnnounce(text), 50);
+  }, []);
+  // Clean up on unmount to avoid setState on unmounted component
+  useEffect(() => () => { if(timerRef.current) clearTimeout(timerRef.current); }, []);
+  return [announce, announce_];
+}
+function _uprm() {
+  const mq = typeof window !== "undefined"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : { matches: false };
+  const [reduced, setReduced] = useState(mq.matches);
+  useEffect(() => {
+    const handler = (e) => setReduced(e.matches);
+    mq.addEventListener?.("change", handler);
+    return () => mq.removeEventListener?.("change", handler);
+  }, []);
+  return reduced;
+}
+function _ca() {
+  let ctx = null;
+  const getCtx = () => {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  };
+  const _isMuted = () => !!window._sfxMuted;
+  const env = (node, vol, atk, sus, rel) => {
+    const t = getCtx().currentTime;
+    node.gain.setValueAtTime(0, t);
+    node.gain.linearRampToValueAtTime(vol, t + atk);
+    node.gain.setValueAtTime(vol, t + atk + sus);
+    node.gain.exponentialRampToValueAtTime(0.0001, t + atk + sus + rel);
+  };
+  return {
+    pick() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      const g = c.createGain(); g.connect(c.destination);
+      env(g, 0.9, 0.002, 0.04, 0.14);
+      const osc = c.createOscillator();
+      osc.type = "sine"; osc.frequency.setValueAtTime(340, t);
+      osc.frequency.exponentialRampToValueAtTime(110, t + 0.14);
+      osc.connect(g); osc.start(t); osc.stop(t + 0.2);
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.04), c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const ng = c.createGain(); ng.gain.setValueAtTime(0.6, t);
+      src.connect(ng); ng.connect(c.destination); src.start(t);
+    },
+    sow() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      const g = c.createGain(); g.connect(c.destination);
+      env(g, 0.6, 0.001, 0.012, 0.07);
+      const osc = c.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(580 + Math.random() * 220, t);
+      osc.frequency.exponentialRampToValueAtTime(280, t + 0.08);
+      osc.connect(g); osc.start(t); osc.stop(t + 0.1);
+    },
+    relay() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [0, 0.07, 0.14].forEach((dt, i) => {
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.6, 0.008, 0.06, 0.2);
+        const osc = c.createOscillator();
+        osc.type = "sine";
+        const base = 480 + i * 180;
+        osc.frequency.setValueAtTime(base, t + dt);
+        osc.frequency.linearRampToValueAtTime(base * 1.55, t + dt + 0.22);
+        osc.connect(g); osc.start(t + dt); osc.stop(t + dt + 0.3);
+      });
+    },
+    capture(amount = 1) {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      const count = Math.min(amount + 2, 9);
+      for (let i = 0; i < count; i++) {
+        const dt = i * 0.052;
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.75, 0.002, 0.05, 0.25);
+        const osc = c.createOscillator();
+        osc.type = "sine";
+        const freq = 680 + i * 95 + Math.random() * 50;
+        osc.frequency.setValueAtTime(freq, t + dt);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.65, t + dt + 0.28);
+        osc.connect(g); osc.start(t + dt); osc.stop(t + dt + 0.32);
+      }
+    },
+    win() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [261.6, 329.6, 392, 523.3, 659.3, 784].forEach((freq, i) => {
+        const dt = i * 0.09;
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.65, 0.01, 0.28, 0.55);
+        const osc = c.createOscillator();
+        osc.type = "triangle"; osc.frequency.setValueAtTime(freq, t + dt);
+        osc.connect(g); osc.start(t + dt); osc.stop(t + dt + 0.9);
+      });
+    },
+    lose() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [523.3, 440, 369.9, 311.1, 261.6, 220].forEach((freq, i) => {
+        const dt = i * 0.1;
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.55, 0.01, 0.22, 0.45);
+        const osc = c.createOscillator();
+        osc.type = "sine"; osc.frequency.setValueAtTime(freq, t + dt);
+        osc.connect(g); osc.start(t + dt); osc.stop(t + dt + 0.65);
+      });
+    },
+    draw() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [392, 392].forEach((freq, i) => {
+        const dt = i * 0.2;
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.55, 0.01, 0.18, 0.4);
+        const osc = c.createOscillator();
+        osc.type = "sine"; osc.frequency.setValueAtTime(freq, t + dt);
+        osc.connect(g); osc.start(t + dt); osc.stop(t + dt + 0.6);
+      });
+    },
+    reset() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      const g = c.createGain(); g.connect(c.destination);
+      env(g, 0.65, 0.015, 0.1, 0.3);
+      const osc = c.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(180, t);
+      osc.frequency.linearRampToValueAtTime(480, t + 0.2);
+      osc.connect(g); osc.start(t); osc.stop(t + 0.45);
+    },
+    _introNodes: [],
+    _introGain: null,
+    startIntro() {
+      if(_isMuted()) return;
+      const c = getCtx();
+      if (this._introGain) return; 
+      const master = c.createGain();
+      master.gain.setValueAtTime(0, c.currentTime);
+      master.gain.linearRampToValueAtTime(0.55, c.currentTime + 2.5);
+      master.connect(c.destination);
+      this._introGain = master;
+      this._introNodes = [];
+      
+      const droneFreqs = [110, 220, 330, 146.8];
+      droneFreqs.forEach((freq, i) => {
+        const o = c.createOscillator();
+        o.type = "sine";
+        o.frequency.setValueAtTime(freq, c.currentTime);
+        const g2 = c.createGain();
+        g2.gain.setValueAtTime(i === 0 ? 0.55 : i === 1 ? 0.3 : 0.12, c.currentTime);
+        o.connect(g2); g2.connect(master);
+        o.start(); this._introNodes.push(o);
+      });
+      
+      const shimmer = c.createOscillator();
+      shimmer.type = "sine"; shimmer.frequency.setValueAtTime(440, c.currentTime);
+      const shimG = c.createGain(); shimG.gain.setValueAtTime(0, c.currentTime);
+      const lfo = c.createOscillator();
+      lfo.type = "sine"; lfo.frequency.setValueAtTime(0.4, c.currentTime);
+      const lfoG = c.createGain(); lfoG.gain.setValueAtTime(0.07, c.currentTime);
+      lfo.connect(lfoG); lfoG.connect(shimG.gain);
+      shimmer.connect(shimG); shimG.connect(master);
+      shimmer.start(); lfo.start();
+      this._introNodes.push(shimmer, lfo);
+      
+      const scale = [220, 247, 277, 330, 370, 440, 494, 554, 659, 740];
+      const phrase = [0,2,4,5,4,2,1,0, 3,5,7,8,7,5,3,2, 4,6,8,9,8,6,4,3];
+      let noteIdx = 0;
+      const scheduleNote = () => {
+        if (!this._introGain) return;
+        const now = c.currentTime;
+        const freq = scale[phrase[noteIdx % phrase.length]];
+        noteIdx++;
+        const g3 = c.createGain();
+        g3.gain.setValueAtTime(0, now);
+        g3.gain.linearRampToValueAtTime(0.65, now + 0.04);
+        g3.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+        g3.connect(master);
+        const o2 = c.createOscillator();
+        o2.type = "triangle";
+        o2.frequency.setValueAtTime(freq, now);
+        o2.connect(g3); o2.start(now); o2.stop(now + 1.9);
+        
+        const g4 = c.createGain();
+        g4.gain.setValueAtTime(0, now);
+        g4.gain.linearRampToValueAtTime(0.22, now + 0.04);
+        g4.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+        g4.connect(master);
+        const o3 = c.createOscillator();
+        o3.type = "sine"; o3.frequency.setValueAtTime(freq * 2, now);
+        o3.connect(g4); o3.start(now); o3.stop(now + 1.3);
+        if (this._introGain) this._introTimer = setTimeout(scheduleNote, 600);
+      };
+      this._introTimer = setTimeout(scheduleNote, 800);
+    },
+    stopIntro() {
+      if (!this._introGain) return;
+      const g = this._introGain;
+      try {
+        g.gain.cancelScheduledValues(0);
+        g.gain.setValueAtTime(g.gain.value, 0);
+        g.gain.linearRampToValueAtTime(0.0001, (g.context||{currentTime:0}).currentTime + 1.2);
+      } catch(e) {}
+      this._introNodes.forEach(n => { try { n.stop(); } catch(e) {} });
+      this._introNodes = [];
+      this._introGain = null;
+      clearTimeout(this._introTimer);
+    },
+    btnClick() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      const g = c.createGain(); g.connect(c.destination);
+      env(g, 0.45, 0.002, 0.03, 0.12);
+      const osc = c.createOscillator();
+      osc.type = "sine"; osc.frequency.setValueAtTime(520, t);
+      osc.frequency.exponentialRampToValueAtTime(340, t + 0.12);
+      osc.connect(g); osc.start(t); osc.stop(t + 0.16);
+    },
+    pageNext() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [0, 0.06].forEach((dt, i) => {
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.38, 0.005, 0.04, 0.18);
+        const osc = c.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(i===0?420:580, t+dt);
+        osc.connect(g); osc.start(t+dt); osc.stop(t+dt+0.22);
+      });
+    },
+    pageBack() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [0, 0.06].forEach((dt, i) => {
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.35, 0.005, 0.04, 0.16);
+        const osc = c.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(i===0?500:360, t+dt);
+        osc.connect(g); osc.start(t+dt); osc.stop(t+dt+0.2);
+      });
+    },
+    modeSelect() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [0, 0.07, 0.14].forEach((dt, i) => {
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.55, 0.005, 0.06, 0.25);
+        const osc = c.createOscillator();
+        osc.type = "triangle";
+        const freqs = [330, 440, 550];
+        osc.frequency.setValueAtTime(freqs[i], t+dt);
+        osc.connect(g); osc.start(t+dt); osc.stop(t+dt+0.3);
+      });
+    },
+    shellSelect() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      const g = c.createGain(); g.connect(c.destination);
+      env(g, 0.6, 0.005, 0.08, 0.3);
+      const osc = c.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(480, t);
+      osc.frequency.linearRampToValueAtTime(640, t + 0.15);
+      osc.connect(g); osc.start(t); osc.stop(t + 0.38);
+      const g2 = c.createGain(); g2.connect(c.destination);
+      env(g2, 0.3, 0.01, 0.06, 0.2);
+      const osc2 = c.createOscillator();
+      osc2.type = "sine"; osc2.frequency.setValueAtTime(960, t+0.05);
+      osc2.connect(g2); osc2.start(t+0.05); osc2.stop(t+0.3);
+    },
+    skipPlay() {
+      if(_isMuted()) return;
+      const c = getCtx(), t = c.currentTime;
+      [261.6, 392, 523.3].forEach((freq, i) => {
+        const dt = i * 0.07;
+        const g = c.createGain(); g.connect(c.destination);
+        env(g, 0.5, 0.005, 0.07, 0.28);
+        const osc = c.createOscillator();
+        osc.type = "triangle"; osc.frequency.setValueAtTime(freq, t+dt);
+        osc.connect(g); osc.start(t+dt); osc.stop(t+dt+0.32);
+      });
+    },
+  };
+}
+window._sfxMuted = false;
+const sfx = _ca();
+function _FS({ events }) {
+  return (
+    <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:300 }}>
+      {events.map(ev => (
+        <FlyArc key={ev.id} fromRect={ev.fromRect} toPitEl={ev.toPitEl} />
+      ))}
+    </div>
+  );
+}
+function FlyArc({ fromRect, toPitEl }) {
+  const [phase, setPhase] = useState("fly");
+  const [pos,   setPos]   = useState({ x:0, y:0, angle:0, _sx:1, _sy:1, opacity:1 });
+  const [dust,  setDust]  = useState(false);
+  const rng = useRef({
+    _sd2:  Math.random() < 0.5 ? 1 : -1,
+    _sp:   50 + Math.random() * 50,
+    _bh:   3  + Math.random() * 3,
+  });
+  const r = rng.current;
+  // Read the live pit rect at animation start (board float is paused by now)
+  const coords = useRef(null);
+  if (!coords.current && toPitEl) {
+    const tr = toPitEl.getBoundingClientRect();
+    const x1 = tr.left + tr.width  / 2;
+    const y1 = tr.top  + tr.height / 2;
+    const x0 = fromRect.left + fromRect.width / 2 + (Math.random() - 0.5) * 6;
+    const y0 = fromRect.top  + fromRect.height / 2;
+    coords.current = { x0, y0, x1, y1 };
+  }
+  const { x0, y0, x1, y1 } = coords.current || { x0:0, y0:0, x1:0, y1:0 };
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const _fm = Math.max(150, Math.min(300, dist * 3.2));
+  useEffect(() => {
+    if (!coords.current) return;
+    const { x0, y0, x1, y1 } = coords.current;
+    let raf;
+    const _fs = performance.now();
+    const _ft = (now) => {
+      const raw = Math.min((now - _fs) / _fm, 1);
+      // Gravity: accelerate downward (ease-in squared)
+      const _ve = raw * raw;
+      const y = y0 + dy * _ve;
+      // Horizontal: ease-out — starts with slight drift, settles into pit
+      const _he = raw * (2 - raw);
+      const x = x0 + dx * _he;
+      // Gentle tumble while falling, slowing near impact
+      const _sd = 1 - raw * 0.5;
+      const angle = r._sd2 * r._sp * raw * _sd;
+      // Squash just before impact
+      const impact = Math.max(0, (raw - 0.80) / 0.20);
+      const _sx = 1 + impact * 0.4;
+      const _sy = 1 / _sx;
+      setPos({ x, y, angle, _sx, _sy, opacity: 1 });
+      if (raw < 1) {
+        raf = requestAnimationFrame(_ft);
+      } else {
+        setDust(true);
+        setPhase("bounce");
+        const _bm = 110;
+        const _bs2 = performance.now();
+        const _bs = (now2) => {
+          const b = Math.min((now2 - _bs2) / _bm, 1);
+          const by = y1 - Math.sin(b * Math.PI) * r._bh;
+          setPos({ x:x1, y:by, angle:0, _sx: 1 + Math.sin(b*Math.PI)*0.1, _sy: 1 - Math.sin(b*Math.PI)*0.1, opacity:1 });
+          if (b < 1) {
+            raf = requestAnimationFrame(_bs);
+          } else {
+            setPhase("settle");
+            const _sm = 160;
+            const _ss2 = performance.now();
+            const _ss = (now3) => {
+              const s = Math.min((now3 - _ss2) / _sm, 1);
+              const wobble = Math.sin(s * Math.PI * 2) * (1 - s) * 0.06;
+              setPos({ x:x1, y:y1, angle:0, _sx:1+wobble, _sy:1-wobble, opacity: 1 - s });
+              if (s < 1) raf = requestAnimationFrame(_ss);
+              else        setPhase("done");
+            };
+            raf = requestAnimationFrame(_ss);
+          }
+        };
+        raf = requestAnimationFrame(_bs);
+      }
+    };
+    raf = requestAnimationFrame(_ft);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  if (phase === "done") return null;
+  // Fix: read fresh viewport size at render time to avoid stale clip if orientation changes
+  const W = window.innerWidth, H = window.innerHeight;
+  return (
+    <svg
+      style={{ position:"fixed", left:0, top:0, width:"100vw", height:"100vh", pointerEvents:"none" }}
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <filter id="shellGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="dustBlur"><feGaussianBlur stdDeviation="1.8"/></filter>
+        <radialGradient id="shellGrad" cx="36%" cy="28%" r="65%">
+          <stop offset="0%"   stopColor="#ede4c8"/>
+          <stop offset="50%"  stopColor="#c8b48a"/>
+          <stop offset="100%" stopColor="#7a5e38"/>
+        </radialGradient>
+      </defs>
+      {phase === "fly" && (
+        <ellipse cx={x1} cy={y1+3}
+          rx={Math.max(1, 7 * (pos.y - y0) / (y1 - y0 + 1))}
+          ry={Math.max(0.4, 2.5 * (pos.y - y0) / (y1 - y0 + 1))}
+          opacity={Math.max(0, (pos.y - y0) / (y1 - y0 + 1) * 0.35)}
+          fill="rgba(0,0,0,0.8)" filter="url(#dustBlur)"/>
+      )}
+      {dust && phase !== "done" && (
+        <g filter="url(#dustBlur)" opacity="0.45">
+          {[-12,-6,0,6,12].map((dx2,i)=>(
+            <circle key={i} cx={x1+dx2} cy={y1+3} r={2.5+Math.abs(dx2)*0.15}
+              fill="rgba(190,165,110,0.6)"/>
+          ))}
+        </g>
+      )}
+      <g transform={`translate(${pos.x},${pos.y}) rotate(${pos.angle}) scale(${pos._sx},${pos._sy})`}
+         opacity={pos.opacity}>
+        <ellipse rx={6} ry={4} fill="url(#shellGrad)" filter="url(#shellGlow)"/>
+        <ellipse rx={3.2} ry={1.5} fill="rgba(255,250,238,0.5)"/>
+        <ellipse rx={4.2} ry={0.65} cy={1.3} fill="rgba(50,28,8,0.5)"/>
+        <ellipse cx={-2} cy={-1.5} rx={1.6} ry={0.85} fill="rgba(255,255,248,0.5)"/>
+      </g>
+    </svg>
+  );
+}
+// TripleFly: animates 3 shells flying from a pit to the score panel
+function TripleFly({ fromEl, toEl, onDone, isLandscape, capN }) {
+  const [shells, setShells] = useState([]);
+  const [burst, setBurst] = useState(false);
+  const startRef = useRef(false);
+  const destRef = useRef({ tx: 0, ty: 0 });
+
+  useEffect(() => {
+    if (startRef.current || !fromEl || !toEl) return;
+    startRef.current = true;
+    const fr = fromEl.getBoundingClientRect();
+    const tr = toEl.getBoundingClientRect();
+    const fx = fr.left + fr.width / 2;
+    const fy = fr.top + fr.height / 2;
+    const tx = tr.left + tr.width / 2;
+    const ty = tr.top + tr.height / 2;
+    destRef.current = { tx, ty };
+    const offsets = [[-10, -8], [0, -14], [10, -8]];
+    const launched = offsets.map((_, i) => ({
+      id: i, x: fx + offsets[i][0], y: fy + offsets[i][1], done: false,
+    }));
+    setShells(launched);
+    const DUR = 520 + 80;
+    // Fix #32: collect all timer IDs so they can be cancelled if the component
+    // unmounts mid-flight (e.g. player resets the game during a triple capture).
+    const timers = [];
+    offsets.forEach((_, i) => {
+      timers.push(setTimeout(() => {
+        setShells(prev => prev.map(s => s.id === i ? { ...s, flying: true, tx, ty } : s));
+      }, i * 80));
+    });
+    timers.push(setTimeout(() => { setBurst(true); sfx.capture(3); }, DUR));
+    timers.push(setTimeout(() => { onDone && onDone(); }, DUR + 700));
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const W = window.innerWidth, H = window.innerHeight;
+  return (
+    <svg style={{ position: "fixed", left: 0, top: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: 500 }}
+      viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+      <defs>
+        <radialGradient id="tsg" cx="36%" cy="28%" r="65%">
+          <stop offset="0%" stopColor="#fffbe8" />
+          <stop offset="50%" stopColor="#ffe080" />
+          <stop offset="100%" stopColor="#c8a040" />
+        </radialGradient>
+        <filter id="tripleGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      {shells.map(s => (
+        <TripleShell key={s.id} sx={s.x} sy={s.y} tx={s.tx} ty={s.ty} fly={!!s.flying} delay={s.id * 80} />
+      ))}
+      {burst && (
+        <TripleBurst cx={destRef.current.tx} cy={destRef.current.ty} isLandscape={isLandscape} capN={capN} />
+      )}
+    </svg>
+  );
+}
+function TripleShell({ sx, sy, tx, ty, fly, delay }) {
+  const [pos, setPos] = useState({ x: sx, y: sy, scale: 1, opacity: 1 });
+  const started = useRef(false);
+  useEffect(() => {
+    if (!fly || started.current || !tx) return;
+    started.current = true;
+    const DUR = 420;
+    const start = performance.now();
+    const dx = tx - sx, dy = ty - sy;
+    // Fix #31: track RAF id so we can cancel it on unmount, preventing setState
+    // calls on an unmounted component when reset() fires mid-animation.
+    let rafId = null;
+    const raf = (now) => {
+      const t = Math.min((now - start) / DUR, 1);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      const arcDir = dy < 0 ? -1 : 1;
+      const arc = Math.sin(t * Math.PI) * Math.min(Math.abs(dy), 80) * 0.6 * arcDir;
+      setPos({
+        x: sx + dx * ease,
+        y: sy + dy * ease + arc,
+        scale: 1 + Math.sin(t * Math.PI) * 0.4,
+        opacity: t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1,
+      });
+      if (t < 1) rafId = requestAnimationFrame(raf);
+    };
+    const timer = setTimeout(() => { rafId = requestAnimationFrame(raf); }, delay);
+    return () => { clearTimeout(timer); if (rafId) cancelAnimationFrame(rafId); };
+  }, [fly]);
+  return (
+    <g transform={`translate(${pos.x},${pos.y}) scale(${pos.scale})`} opacity={pos.opacity} filter="url(#tripleGlow)">
+      <ellipse rx={7} ry={4.5} fill="url(#tsg)" />
+      <ellipse rx={3.5} ry={1.8} fill="rgba(255,255,220,0.55)" />
+      <ellipse cx={-2.2} cy={-1.5} rx={1.8} ry={1} fill="rgba(255,255,248,0.5)" />
+    </g>
+  );
+}
+function TripleBurst({ cx, cy, isLandscape, capN }) {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    let f = 0;
+    const iv = setInterval(() => { f++; setFrame(f); if (f > 12) clearInterval(iv); }, 45);
+    return () => clearInterval(iv);
+  }, []);
+  const t = Math.min(frame / 12, 1);
+  const scale = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+  const opacity = t < 0.3 ? t / 0.3 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+  const r = 18 + t * 22;
+  return (
+    <g transform={`translate(${cx},${cy})`} opacity={opacity}>
+      <circle r={r} fill="none" stroke="rgba(255,220,40,0.7)" strokeWidth={2.5 * (1 - t)} />
+      <circle r={r * 0.6} fill="rgba(255,230,60,0.15)" />
+      <g transform={`scale(${scale}) rotate(${isLandscape ? 0 : 90})`}>
+        <text textAnchor="middle" dominantBaseline="middle" y={-2}
+          fontSize={22} fontWeight="bold" fontFamily="Cinzel,serif"
+          fill="#ffe040" style={{ filter: "drop-shadow(0 0 8px rgba(255,180,0,0.9))" }}>{`+${capN||3}`}</text>
+      </g>
+      {[0, 60, 120, 180, 240, 300].map((a, i) => {
+        const rad = a * Math.PI / 180;
+        const dist = 28 + t * 18;
+        return (
+          <circle key={i}
+            cx={Math.cos(rad) * dist} cy={Math.sin(rad) * dist}
+            r={2.5 * (1 - t)} fill="#ffe060" opacity={0.8} />
+        );
+      })}
+    </g>
+  );
+}
+function _RH({ pose = "hover" }) {
+  const isGrab = pose === "pinch" || pose === "scoop" || pose === "relay";
+  const emoji  = isGrab ? "✊" : "🫳";
+  const glow   = isGrab ? "rgba(255,210,60,0.9)" : "rgba(80,220,130,0.9)";
+  const rotate = isGrab ? "0deg" : "90deg";
+  return (
+    <div style={{
+      fontSize: 36,
+      lineHeight: 1,
+      filter: `drop-shadow(0 0 12px ${glow}) drop-shadow(0 4px 8px rgba(0,0,0,0.8))`,
+      display: "inline-block",
+      userSelect: "none",
+      transform: `rotate(${rotate})`,
+    }}>
+      {emoji}
+    </div>
+  );
+}
+function _HOB({ activePit, pose, player, pitRefs }) {
+  const [pos, setPos] = useState(null);
+  const [animKey, setAnimKey] = useState(0);
+  useEffect(() => {
+    if (activePit === null || activePit === undefined) {
+      setPos(null);
+      return;
+    }
+    const el = pitRefs.current[activePit];
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height * 0.3,
+    });
+    setAnimKey(k => k + 1);
+  }, [activePit, pose]);
+  if (!pos) return null;
+  return (
+    <div
+      key={animKey}
+      style={{
+        position: "fixed",
+        left: pos.x,
+        top: pos.y,
+        transform: "translateX(-50%) translateY(-50%)",
+        zIndex: 999,
+        pointerEvents: "none",
+        animation: "handSlide 0.28s cubic-bezier(0.22,1,0.36,1) both",
+      }}
+    >
+      <_RH pose={pose} />
+    </div>
+  );
+}
+const _FH  = 3;
+const _FA = 10;
+const OVAL    = [0,1,2,3,4,5,6, 13,12,11,10,9,8,7];
+const _oix = Object.fromEntries(OVAL.map((p,i)=>[p,i]));
+const nextPit = p => OVAL[(_oix[p]+1) % OVAL.length];
+const _ib = (count=6) => {
+  const b = Array(14).fill(count);
+  b[_FH]  = 0;
+  b[_FA] = 0;
+  return b;
+};
+const _lm = (board, player) => {
+  const pits = player===0 ? [0,1,2,3,4,5,6] : [7,8,9,10,11,12,13];
+  return pits.filter(i => i!==_FH && i!==_FA && board[i]>0);
+};
+function _st(board, start, player, captureAt=3) {
+  const steps=[]; let b=[...board], cur=start;
+  let gains=[0,0];
+  const FORBIDS = [_FH, _FA];
+  const _pf = FORBIDS.map(fp => OVAL[((_oix[fp] - 1) + OVAL.length) % OVAL.length]);
+  const _ppf = FORBIDS.map(fp => OVAL[((_oix[fp] - 2) + OVAL.length) % OVAL.length]);
+  let _cf = null;
+  for(;;) {
+    const cnt=b[cur]; if(!cnt) break;
+    b[cur]=0;
+    steps.push({type:"pick", pit:cur, board:[...b], gain:gains[player], gains:[...gains]});
+    let pos=cur;
+    for(let s=0;s<cnt;s++){
+      pos=nextPit(pos);
+      b[pos]++;
+      steps.push({type:"sow",pit:pos,board:[...b],gain:gains[player],gains:[...gains]});
+      // Fix #2: Magic capture only triggers on the pit just sowed into, not all pits.
+      // Traditional Pallankuzhi rule: when the shell you drop makes a pit reach exactly
+      // captureAt shells, that pit is captured by the side that owns it.
+      if(pos!==_FH && pos!==_FA && b[pos]===captureAt){
+        const _to=pos<=6?0:1;
+        b[pos]=0;
+        gains[_to]+=captureAt;
+        steps.push({type:"triple",pit:pos,owner:_to,board:[...b],gain:gains[player],gains:[...gains]});
+      }
+    }
+    const _pfi = _pf.indexOf(pos);
+    if(_pfi !== -1){
+      _cf = FORBIDS[_pfi];
+      steps.push({type:"end",pit:pos,board:[...b],gain:gains[player],gains:[...gains]}); break;
+    }
+    const _ppfi = _ppf.indexOf(pos);
+    if(_ppfi !== -1 && b[_pf[_ppfi]]===0){
+      steps.push({type:"end",pit:pos,board:[...b],gain:gains[player],gains:[...gains]}); break;
+    }
+    const nxt=nextPit(pos);
+    if(b[nxt]>0){
+      steps.push({type:"relay",pit:nxt,board:[...b],gain:gains[player],gains:[...gains]});
+      cur=nxt; continue;
+    } else {
+      // Capture rule: last shell next to empty pit → capture seeds in the next pit of that empty pit
+      const nxtOfEmpty = nextPit(nxt);
+      // Fix #6 (clarification): nxt is the empty pit, nxtOfEmpty is the capture target.
+      // We intentionally do NOT block nxt===_pf[i] (the pit before forbidden) here, because
+      // _pf is only a relay-stop rule, not a capture-block rule. The forbidden pits themselves
+      // (_FH/_FA) are blocked as both the empty pit and the capture target, which is correct.
+      if(b[nxt]===0 && nxtOfEmpty!==undefined && b[nxtOfEmpty]>0 && nxt!==_FH && nxt!==_FA && nxtOfEmpty!==_FH && nxtOfEmpty!==_FA){
+        const amt=b[nxtOfEmpty]; b[nxtOfEmpty]=0; gains[player]+=amt;
+        steps.push({type:"capture",pit:nxtOfEmpty,amount:amt,board:[...b],gain:gains[player],gains:[...gains]});
+      }
+      steps.push({type:"end",pit:pos,board:[...b],gain:gains[player],gains:[...gains]}); break;
+    }
+  }
+  return {steps, finalBoard:b, totalGain:gains[player], gains, _cf};
+}
+const _aiB = (board, capAt) => {
+  const ms=_lm(board,1); if(!ms.length) return -1;
+  // Score each move: prefer captures, then relays, then most shells
+  const scoreMove = (m) => {
+    const {steps, totalGain} = _st(board, m, 1, capAt);
+    let score = totalGain * 100; // captures are best
+    // Bonus for relay (continuing turn)
+    if(steps.some(s=>s.type==="relay")) score += 30;
+    // Bonus for landing before empty pit (sets up next capture)
+    const last = steps[steps.length-1];
+    if(last) {
+      const nxt = nextPit(last.pit);
+      const nxtOfEmpty = nextPit(nxt);
+      if(last.board[nxt]===0 && last.board[nxtOfEmpty]>0) score += 20;
+    }
+    // Fallback: prefer pits with more shells (more sowing = more options)
+    score += board[m];
+    return score;
+  };
+  return ms.reduce((best, m) => scoreMove(m) > scoreMove(best) ? m : best, ms[0]);
+};
+function Cowrie({x,y,w=18,h=13,rotate=0,tint="normal"}) {
+  const body  = tint==="lit"?"#e8dfc0":tint==="captured"?"#d4a070":tint==="relay"?"#b0d4b8":"#c8bc9e";
+  const inner = tint==="lit"?"#ccc8e0":tint==="captured"?"#c08060":tint==="relay"?"#88c4a0":"#9e98b4";
+  const rim   = tint==="lit"?"#d4c070":tint==="captured"?"#c07040":tint==="relay"?"#60b080":"#b89050";
+  const rx=w/2, ry=h/2;
+  const teeth = Array.from({length:9},(_,i)=> -rx*0.72+i*(rx*1.44/8));
+  return (
+    <g transform={`translate(${x},${y}) rotate(${rotate})`} style={{filter:"drop-shadow(0 1.5px 3px rgba(0,0,0,0.55))"}}>
+      <ellipse cx={0} cy={0} rx={rx} ry={ry} fill={body} stroke={rim} strokeWidth={0.7}/>
+      <ellipse cx={0} cy={0} rx={rx*0.75} ry={ry*0.62} fill={inner}/>
+      <ellipse cx={0} cy={0} rx={rx*0.75} ry={ry*0.62} fill="none" stroke={rim} strokeWidth={0.5} opacity={0.6}/>
+      <path d={`M${-rx*0.72},0 Q0,${ry*0.15} ${rx*0.72},0`} fill="none" stroke="rgba(20,10,0,0.75)" strokeWidth={1.1} strokeLinecap="round"/>
+      {teeth.map((tx,i)=>(
+        <line key={i} x1={tx} y1={-ry*0.18} x2={tx} y2={ry*0.18} stroke="rgba(20,10,0,0.45)" strokeWidth={0.5} strokeLinecap="round"/>
+      ))}
+      <ellipse cx={0} cy={-ry*0.12} rx={rx*0.55} ry={ry*0.28} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.6}/>
+      <ellipse cx={-rx*0.25} cy={-ry*0.3} rx={rx*0.22} ry={ry*0.16} fill="rgba(255,255,255,0.32)"/>
+    </g>
+  );
+}
+const LAYOUTS=[
+  [],[[0,0,0]],[[-6,0,-20],[6,0,20]],
+  [[-7,-5,-15],[7,-5,15],[0,6,0]],
+  [[-7,-5,-25],[7,-5,25],[-7,5,15],[7,5,-15]],
+  [[-8,-6,-20],[8,-6,20],[0,-1,0],[-8,6,15],[8,6,-15]],
+  [[-8,-7,-28],[0,-7,5],[8,-7,28],[-8,4,20],[0,4,-5],[8,4,-20]],
+  [[-9,-8,-24],[0,-8,0],[9,-8,24],[-10,0,15],[10,0,-15],[-7,8,20],[7,8,-20]],
+  [[-9,-8,-24],[0,-8,5],[9,-8,24],[-10,0,-8],[10,0,8],[-9,8,20],[0,8,-5],[9,8,-20]],
+  [[-9,-9,-18],[0,-9,0],[9,-9,18],[-11,0,14],[0,0,-8],[11,0,-14],[-9,9,18],[0,9,5],[9,9,-18]],
+  [[-9,-9,-18],[0,-9,5],[9,-9,18],[-11,-2,14],[11,-2,-14],[-11,5,20],[0,5,0],[11,5,-20],[-5,10,-8],[5,10,8]],
+  [[-9,-10,-15],[0,-10,0],[9,-10,15],[-11,-4,20],[11,-4,-20],[0,-1,5],[-11,4,14],[11,4,-14],[-9,10,20],[0,10,-5],[9,10,-20]],
+  [[-9,-10,-14],[0,-10,0],[9,-10,14],[-11,-5,20],[11,-5,-20],[-4,-1,-8],[4,-1,8],[-11,5,14],[11,5,-14],[-9,10,20],[0,10,-5],[9,10,-20]],
+];
+function _PS({count,tint}) {
+  if(!count) return null;
+  const shown=Math.min(count,12), layout=LAYOUTS[shown];
+  const sw=shown<=2?19:shown<=4?17:shown<=7?14:12, sh=sw*0.68;
+  return (
+    <svg viewBox="-32 -32 64 64" style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}}>
+      {layout.map(([sx,sy,rot],i)=><Cowrie key={i} x={sx} y={sy} w={sw} h={sh} rotate={rot} tint={tint}/>)}
+      {count>12&&<text x={0} y={5} textAnchor="middle" fontSize={14} fontWeight="bold"
+        fill={tint==="lit"?"#ffe080":tint==="captured"?"#ff9060":tint==="relay"?"#80ffb0":"#e8d8a0"}
+        fontFamily="Georgia,serif" style={{filter:"drop-shadow(0 1px 4px rgba(0,0,0,0.9))"}}>{count}</text>}
+    </svg>
+  );
+}
+function Pit({seeds,canClick,isLit,isCaptured,isRelay,isForbidden,isHovered,onHover,onLeave,onClick,pitIndex,label,isLandscape}) {
+  const tint=isCaptured?"captured":isLit?"lit":isRelay?"relay":"normal";
+  let rimCol="#2a0e00",glow="none",scale=1;
+  if(isForbidden)             {rimCol="#6a1a0a";}
+  else if(isCaptured)         {rimCol="#ff6030";glow="0 0 0 3px #ff5020,0 0 18px #ff502088";scale=1.08;}
+  else if(isLit)              {rimCol="#ffe050";glow="0 0 0 3px #ffe050,0 0 20px #ffe05088";scale=1.1;}
+  else if(isRelay)            {rimCol="#50e880";glow="0 0 0 3px #40e070,0 0 16px #40e07088";scale=1.07;}
+  else if(isHovered&&canClick){rimCol="rgba(220,180,60,0.9)";glow="0 0 0 2px rgba(220,180,60,0.7),0 0 12px rgba(220,180,60,0.35)";scale=1.05;}
+  else if(canClick)           {rimCol="rgba(210,155,30,0.7)";glow="0 0 0 1.5px rgba(210,155,30,0.4),0 0 14px rgba(200,140,10,0.28)";scale=1.02;}
+  const ariaLabel = `${label || `Pit ${pitIndex}`}, ${seeds} shell${seeds!==1?"s":""}`
+    + (isForbidden ? ", forbidden" : canClick ? ", press to sow" : "");
+  return (
+    <div
+      role={canClick ? "button" : "img"}
+      tabIndex={canClick ? 0 : -1}
+      aria-label={ariaLabel}
+      aria-disabled={!canClick}
+      aria-pressed={isLit || undefined}
+      onClick={canClick ? onClick : undefined}
+      onKeyDown={canClick ? (e) => { if(e.key==="Enter"||e.key===" "){e.preventDefault();onClick();} } : undefined}
+      onMouseEnter={onHover} onMouseLeave={onLeave}
+      onFocus={onHover} onBlur={onLeave}
+      style={{position:"relative",width:100,height:100,borderRadius:"50%",
+        cursor:canClick?"pointer":"default",transform:`scale(${scale})`,
+        transition:"transform 0.14s,box-shadow 0.14s",flexShrink:0,boxShadow:glow,
+        outline:"none",
+      }}>
+      {canClick && <div style={{
+        position:"absolute",inset:-4,borderRadius:"50%",pointerEvents:"none",
+        boxShadow:"0 0 0 3px #ffe050",opacity:0,
+        transition:"opacity 0.1s",
+      }} className="pit-focus-ring"/>}
+      <div style={{position:"absolute",inset:0,borderRadius:"50%",
+        background:"radial-gradient(circle at 33% 24%,#a05828 0%,#6a2c08 35%,#3e1402 72%,#1e0800 100%)",
+        border:`2.5px solid ${rimCol}`,
+        boxShadow:"0 5px 16px rgba(0,0,0,0.8),inset 0 2px 4px rgba(255,140,40,0.08)",
+        transition:"border-color 0.14s"}}/>
+      <div style={{position:"absolute",inset:8,borderRadius:"50%",
+        background:"radial-gradient(ellipse at 40% 30%,#180500 0%,#060100 60%,#020000 100%)",
+        boxShadow:"inset 0 6px 22px rgba(0,0,0,1)",overflow:"hidden"}}>
+        <_PS count={seeds} tint={tint}/>
+      </div>
+      {isForbidden&&<div style={{position:"absolute",inset:0,borderRadius:"50%",display:"flex",
+        alignItems:"center",justifyContent:"center",pointerEvents:"none",zIndex:5}}
+        aria-hidden="true">
+        <span style={{fontSize:28,opacity:0.85}}>⛔</span></div>}
+      {!isForbidden&&<div aria-hidden="true" style={{
+        position:"absolute",bottom:6,right:6,
+        minWidth:22,height:22,borderRadius:11,
+        background:"rgba(0,0,0,0.75)",
+        border:`1.5px solid ${isLit?"#ffe060":isCaptured?"#ff8040":isRelay?"#60ff90":canClick?"#c8a040":"#3a1c04"}`,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        pointerEvents:"none",zIndex:6,padding:"0 4px",
+        // Fix #12: only rotate badge in portrait — landscape pits are upright
+        transform:isLandscape?"none":"rotate(90deg)",
+        transformOrigin:"center center",
+      }}>
+        <span style={{
+          fontSize:12,fontWeight:"bold",fontFamily:"Cinzel,serif",
+          color:isLit?"#ffe060":isCaptured?"#ff8040":isRelay?"#60ff90":canClick?"#c8a040":"#6a4020",
+          lineHeight:1,
+        }}>{seeds}</span>
+      </div>}
+      {/* Fix #20: tooltip moved inside pit — float-above got clipped on mobile */}
+      {(isHovered||undefined)&&canClick&&<div aria-hidden="true" style={{
+        position:"absolute",top:"50%",left:"50%",
+        transform:"translate(-50%,-50%)",
+        background:"rgba(255,215,60,0.92)",color:"#1a0a00",fontSize:12,padding:"3px 11px",
+        borderRadius:20,fontFamily:"Cinzel,serif",letterSpacing:2,fontWeight:"bold",
+        boxShadow:"0 2px 12px rgba(0,0,0,0.7)",whiteSpace:"nowrap",pointerEvents:"none",
+        zIndex:20,animation:"fadeUp 0.12s ease"}}>SOW</div>}
+    </div>
+  );
+}
+function _L8({cx,cy,r,opacity=0.85,sw=0.9}) {
+  return (
+    <g transform={`translate(${cx},${cy})`} opacity={opacity}>
+      {[0,45,90,135,180,225,270,315].map((a,i)=>(
+        <g key={i} transform={`rotate(${a})`}>
+          <path d={`M0,0 Q${r*0.55},-${r*0.52} 0,-${r} Q-${r*0.55},-${r*0.52} 0,0`}
+            fill="none" stroke="rgba(240,225,175,0.82)" strokeWidth={sw}/>
+        </g>
+      ))}
+      <circle r={r*0.2} fill="none" stroke="rgba(240,225,175,0.7)" strokeWidth={sw*0.8}/>
+      <circle r={r*0.09} fill="rgba(240,225,175,0.95)"/>
+    </g>
+  );
+}
+function _L6({cx,cy,r,opacity=0.82,sw=0.85}) {
+  return (
+    <g transform={`translate(${cx},${cy})`} opacity={opacity}>
+      {[0,60,120,180,240,300].map((a,i)=>(
+        <g key={i} transform={`rotate(${a})`}>
+          <path d={`M0,0 Q${r*0.55},-${r*0.52} 0,-${r} Q-${r*0.55},-${r*0.52} 0,0`}
+            fill="none" stroke="rgba(240,225,175,0.82)" strokeWidth={sw}/>
+        </g>
+      ))}
+      <circle r={r*0.2} fill="none" stroke="rgba(240,225,175,0.65)" strokeWidth={sw*0.8}/>
+      <circle r={r*0.09} fill="rgba(240,225,175,0.95)"/>
+    </g>
+  );
+}
+function _DU({cx,cy,w,h,sw=0.85}) {
+  const c="rgba(240,225,175,";
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <path d={`M0,-${h} L${w},0 L0,${h} L-${w},0 Z`}
+        fill="none" stroke={c+"0.7)"} strokeWidth={sw}/>
+      <path d={`M0,-${h*0.5} L${w*0.5},0 L0,${h*0.5} L-${w*0.5},0 Z`}
+        fill="none" stroke={c+"0.42)"} strokeWidth={sw*0.75}/>
+      <path d={`M-${w},0 Q0,-${h*0.7} ${w},0`}  fill="none" stroke={c+"0.28)"} strokeWidth={sw*0.65}/>
+      <path d={`M-${w},0 Q0,${h*0.7} ${w},0`}   fill="none" stroke={c+"0.22)"} strokeWidth={sw*0.6}/>
+      <path d={`M0,-${h} Q${w*0.7},0 0,${h}`}   fill="none" stroke={c+"0.22)"} strokeWidth={sw*0.6}/>
+      <path d={`M0,-${h} Q-${w*0.7},0 0,${h}`}  fill="none" stroke={c+"0.22)"} strokeWidth={sw*0.6}/>
+      <circle cx={0}   cy={-h}  r={1.1} fill={c+"0.72)"}/>
+      <circle cx={w}   cy={0}   r={1.1} fill={c+"0.72)"}/>
+      <circle cx={0}   cy={h}   r={1.1} fill={c+"0.72)"}/>
+      <circle cx={-w}  cy={0}   r={1.1} fill={c+"0.72)"}/>
+      <circle r={1.5} fill={c+"0.95)"}/>
+    </g>
+  );
+}
+function _KBH() {
+  const H=50, cy=H/2;
+  const TILE=62, COUNT=14;
+  const totalW=TILE*COUNT;
+  const tiles=Array.from({length:COUNT},(_,i)=>i);
+  return (
+    <svg width="100%" height={H} viewBox={`0 0 ${totalW} ${H}`} preserveAspectRatio="xMidYMid slice"
+      style={{display:"block",pointerEvents:"none",height:H}}>
+      {Array.from({length:Math.ceil(totalW/9)},(_,i)=>(
+        <circle key={`t${i}`} cx={4+i*9} cy={4} r={0.82} fill="rgba(240,225,175,0.30)"/>
+      ))}
+      {Array.from({length:Math.ceil(totalW/9)},(_,i)=>(
+        <circle key={`b${i}`} cx={4+i*9} cy={H-4} r={0.82} fill="rgba(240,225,175,0.30)"/>
+      ))}
+      <line x1={0} y1={cy} x2={totalW} y2={cy}
+        stroke="rgba(240,228,190,0.13)" strokeWidth={0.5} strokeDasharray="2,8"/>
+      {tiles.map(i=>{
+        const cx=TILE*i+TILE/2;
+        if(i%2===0) return <_L8 key={i} cx={cx} cy={cy} r={14} opacity={0.85} sw={0.9}/>;
+        return <_L6 key={i} cx={cx} cy={cy} r={11} opacity={0.75} sw={0.82}/>;
+      })}
+      {tiles.map(i=>{
+        const cx=TILE*i+TILE/2;
+        return <_DU key={`d${i}`} cx={cx-TILE*0.37} cy={cy} w={6} h={10} sw={0.78}/>;
+      })}
+      {tiles.map(i=>{
+        const cx=TILE*i+TILE/2;
+        return (
+          <g key={`dot${i}`}>
+            <circle cx={cx-TILE*0.19} cy={cy} r={1.0} fill="none" stroke="rgba(240,225,175,0.42)" strokeWidth={0.6}/>
+            <circle cx={cx-TILE*0.19} cy={cy} r={0.45} fill="rgba(240,225,175,0.78)"/>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+function _KSV() {
+  const W=38, VH=680, cx=W/2;
+  const _mp=[];
+  for(let y=72; y<=VH-72; y+=52) _mp.push(y);
+  return (
+    <svg width={W} height="100%" viewBox={`0 0 ${W} ${VH}`} preserveAspectRatio="xMidYMid meet"
+      style={{display:"block",pointerEvents:"none",flexShrink:0}}>
+      {Array.from({length:Math.ceil(VH/9)},(_,i)=>(
+        <circle key={`L${i}`} cx={3.2} cy={4+i*9} r={0.78} fill="rgba(240,225,175,0.28)"/>
+      ))}
+      {Array.from({length:Math.ceil(VH/9)},(_,i)=>(
+        <circle key={`R${i}`} cx={W-3.2} cy={4+i*9} r={0.78} fill="rgba(240,225,175,0.28)"/>
+      ))}
+      <line x1={cx} y1={12} x2={cx} y2={VH-12}
+        stroke="rgba(240,228,190,0.16)" strokeWidth={0.55} strokeDasharray="2,7"/>
+      <_L8 cx={cx} cy={22} r={13} opacity={0.78} sw={0.88}/>
+      <_L8 cx={cx} cy={VH-22} r={13} opacity={0.78} sw={0.88}/>
+      {_mp.map((y,i)=>{
+        if(i%3===1) return <_L6 key={i} cx={cx} cy={y} r={10} opacity={0.72} sw={0.82}/>;
+        return <_DU key={i} cx={cx} cy={y} w={9.5} h={14} sw={0.85}/>;
+      })}
+      {_mp.slice(0,-1).map((y,i)=>{
+        const m=(y+_mp[i+1])/2;
+        return (
+          <g key={i}>
+            <circle cx={cx} cy={m-5} r={0.75} fill="rgba(240,225,175,0.38)"/>
+            <circle cx={cx} cy={m}   r={1.05} fill="none" stroke="rgba(240,225,175,0.48)" strokeWidth={0.6}/>
+            <circle cx={cx} cy={m}   r={0.48} fill="rgba(240,225,175,0.82)"/>
+            <circle cx={cx} cy={m+5} r={0.75} fill="rgba(240,225,175,0.38)"/>
+          </g>
+        );
+      })}
+      {_mp.length>0 && (()=>{
+        const m=(22+_mp[0])/2;
+        return (
+          <g key="toplink">
+            <circle cx={cx} cy={m} r={1.05} fill="none" stroke="rgba(240,225,175,0.42)" strokeWidth={0.6}/>
+            <circle cx={cx} cy={m} r={0.48} fill="rgba(240,225,175,0.78)"/>
+          </g>
+        );
+      })()}
+      {_mp.length>0 && (()=>{
+        const last=_mp[_mp.length-1];
+        const m=(last+VH-22)/2;
+        return (
+          <g key="botlink">
+            <circle cx={cx} cy={m} r={1.05} fill="none" stroke="rgba(240,225,175,0.42)" strokeWidth={0.6}/>
+            <circle cx={cx} cy={m} r={0.48} fill="rgba(240,225,175,0.78)"/>
+          </g>
+        );
+      })()}
+    </svg>
+  );
+}
+function _KD() {
+  const W=16, VH=640, cx=W/2;
+  const positions=[];
+  for(let y=32; y<=VH-32; y+=42) positions.push(y);
+  return (
+    <svg width={W} height="100%" viewBox={`0 0 ${W} ${VH}`} preserveAspectRatio="xMidYMid meet"
+      style={{display:"block",pointerEvents:"none"}}>
+      <line x1={cx} y1={10} x2={cx} y2={VH-10}
+        stroke="rgba(240,228,190,0.16)" strokeWidth={0.5} strokeDasharray="2,6"/>
+      <_L6 cx={cx} cy={18} r={7} opacity={0.65} sw={0.75}/>
+      <_L6 cx={cx} cy={VH-18} r={7} opacity={0.65} sw={0.75}/>
+      {positions.map((y,i)=>(
+        <g key={i}>
+          <circle cx={cx} cy={y} r={2.2} fill="none" stroke="rgba(240,225,175,0.58)" strokeWidth={0.72}/>
+          <circle cx={cx} cy={y} r={0.95} fill="rgba(240,225,175,0.9)"/>
+          {i%2===0 && (
+            <>
+              <path
+                d={`M${cx},${y-2.2} Q${cx-6},${y-11} ${cx},${y-18} Q${cx+6},${y-11} ${cx},${y-2.2}`}
+                fill="none" stroke="rgba(240,225,175,0.3)" strokeWidth={0.62}/>
+              <path
+                d={`M${cx},${y+2.2} Q${cx-6},${y+11} ${cx},${y+18} Q${cx+6},${y+11} ${cx},${y+2.2}`}
+                fill="none" stroke="rgba(240,225,175,0.3)" strokeWidth={0.62}/>
+            </>
+          )}
+          {i<positions.length-1 && (
+            <>
+              <circle cx={cx} cy={(y+positions[i+1])/2-4} r={0.65} fill="rgba(240,225,175,0.32)"/>
+              <circle cx={cx} cy={(y+positions[i+1])/2+4} r={0.65} fill="rgba(240,225,175,0.32)"/>
+            </>
+          )}
+        </g>
+      ))}
+    </svg>
+  );
+}
+function _KCB() {
+  const cx=85, cy=290;
+  const c="rgba(240,225,175,";
+  // Petal helper: draws a pointed kolam petal from centre toward (tx,ty)
+  // with width controlled by spread
+  const petal=(tx,ty,spread)=>{
+    const px=cx+(tx-cx)*0.45, py=cy+(ty-cy)*0.45;
+    const nx=-(ty-cy)*spread, ny=(tx-cx)*spread;
+    return `M${cx},${cy} Q${px+nx},${py+ny} ${tx},${ty} Q${px-nx},${py-ny} ${cx},${cy}`;
+  };
+  // 6 radial dot positions around the centre lotus
+  const ring1=Array.from({length:6},(_,i)=>{const a=i*60*Math.PI/180;return[cx+Math.cos(a)*36,cy+Math.sin(a)*36];});
+  const ring2=Array.from({length:12},(_,i)=>{const a=i*30*Math.PI/180;return[cx+Math.cos(a)*60,cy+Math.sin(a)*60];});
+  // Kolam grid dots — traditional pulli pattern (5×11 grid offset)
+  const dots=[];
+  for(let row=0;row<11;row++){
+    const cols=row%2===0?5:4;
+    const xOff=row%2===0?0:8.5;
+    for(let col=0;col<cols;col++){
+      dots.push([cx-34+xOff+col*17, cy-84+row*17]);
+    }
+  }
+  return (
+    <svg width={170} height={580} viewBox="0 0 170 580"
+      style={{opacity:0.28,pointerEvents:"none"}}>
+      {/* Outer ellipse border */}
+      <ellipse cx={cx} cy={cy} rx={72} ry={262}
+        fill="none" stroke={c+"0.9)"} strokeWidth={0.9}/>
+      {/* Inner ellipse */}
+      <ellipse cx={cx} cy={cy} rx={52} ry={220}
+        fill="none" stroke={c+"0.45)"} strokeWidth={0.6} strokeDasharray="4,6"/>
+      {/* Vertical spine */}
+      <line x1={cx} y1={30} x2={cx} y2={550}
+        stroke={c+"0.25)"} strokeWidth={0.6} strokeDasharray="2,8"/>
+      {/* 7 horizontal dividers with diamonds — one per pit row */}
+      {[62,138,204,290,376,442,518].map((y,i)=>(
+        <g key={i}>
+          <line x1={14} y1={y} x2={156} y2={y}
+            stroke={c+"0.18)"} strokeWidth={0.5} strokeDasharray="2,6"/>
+          <_DU cx={cx} cy={y} w={7} h={11} sw={0.7}/>
+          {/* small accent dots flanking the diamond */}
+          <circle cx={cx-20} cy={y} r={0.9} fill={c+"0.5)"}/>
+          <circle cx={cx+20} cy={y} r={0.9} fill={c+"0.5)"}/>
+        </g>
+      ))}
+      {/* 4 large petals reaching toward corners of the board */}
+      {[
+        [cx, cy-200],
+        [cx, cy+200],
+        [cx-62, cy],
+        [cx+62, cy],
+      ].map(([tx,ty],i)=>(
+        <path key={i} d={petal(tx,ty,0.28)}
+          fill="none" stroke={c+"0.38)"} strokeWidth={0.75}/>
+      ))}
+      {/* 4 diagonal petals */}
+      {[
+        [cx-44, cy-160],
+        [cx+44, cy-160],
+        [cx-44, cy+160],
+        [cx+44, cy+160],
+      ].map(([tx,ty],i)=>(
+        <path key={i} d={petal(tx,ty,0.22)}
+          fill="none" stroke={c+"0.25)"} strokeWidth={0.6}/>
+      ))}
+      {/* Ring 1 — inner 6 dots around lotus */}
+      {ring1.map(([x,y],i)=>(
+        <g key={i}>
+          <circle cx={x} cy={y} r={2.4} fill="none" stroke={c+"0.55)"} strokeWidth={0.65}/>
+          <circle cx={x} cy={y} r={0.9} fill={c+"0.85)"}/>
+        </g>
+      ))}
+      {/* Ring 2 — outer 12 dots */}
+      {ring2.map(([x,y],i)=>(
+        <circle key={i} cx={x} cy={y} r={0.8} fill={c+"0.45)"}/>
+      ))}
+      {/* Centre lotus (8-petal) */}
+      <_L8 cx={cx} cy={cy} r={26} opacity={0.95} sw={0.9}/>
+      {/* Kolam pulli dots grid */}
+      {dots.map(([x,y],i)=>(
+        <circle key={i} cx={x} cy={y} r={0.9} fill={c+"0.35)"}/>
+      ))}
+      {/* Top and bottom accent lotuses */}
+      <_L6 cx={cx} cy={80} r={16} opacity={0.7} sw={0.8}/>
+      <_L6 cx={cx} cy={500} r={16} opacity={0.7} sw={0.8}/>
+      {/* Corner accent diamonds */}
+      <_DU cx={30} cy={cy} w={8} h={13} sw={0.72}/>
+      <_DU cx={140} cy={cy} w={8} h={13} sw={0.72}/>
+      {/* Traditional kolam loop — continuous serpentine line weaving top-to-bottom */}
+      {/* Left loop strand: winds down the left side of centre, looping around each pit row */}
+      <path d={`
+        M${cx},28
+        C${cx-18},40 ${cx-30},55 ${cx-22},70
+        C${cx-14},85 ${cx+14},85 ${cx+22},70
+        C${cx+30},55 ${cx+18},40 ${cx},52
+        C${cx-18},64 ${cx-28},80 ${cx-22},100
+        C${cx-16},120 ${cx-16},128 ${cx-22},138
+        C${cx-30},150 ${cx-26},162 ${cx-14},168
+        C${cx-2},174 ${cx+2},174 ${cx+14},168
+        C${cx+26},162 ${cx+30},150 ${cx+22},138
+        C${cx+14},126 ${cx+14},118 ${cx+22},104
+        C${cx+30},90 ${cx+26},76 ${cx},80
+        C${cx-26},84 ${cx-30},98 ${cx-22},114
+        C${cx-14},130 ${cx-14},148 ${cx-22},162
+        C${cx-30},176 ${cx-26},190 ${cx},196
+        C${cx+26},202 ${cx+30},214 ${cx+22},228
+        C${cx+14},242 ${cx+2},248 ${cx},256
+        C${cx-2},264 ${cx-14},270 ${cx-22},262
+        C${cx-30},254 ${cx-30},242 ${cx-22},232
+        C${cx-14},222 ${cx},218 ${cx},226
+        C${cx},234 ${cx-14},244 ${cx-22},258
+        C${cx-30},272 ${cx-26},284 ${cx},290
+        C${cx+26},296 ${cx+30},308 ${cx+22},322
+        C${cx+14},336 ${cx+2},340 ${cx},348
+        C${cx-2},356 ${cx-14},360 ${cx-22},352
+        C${cx-30},344 ${cx-30},332 ${cx-22},320
+        C${cx-14},308 ${cx},306 ${cx},316
+        C${cx},326 ${cx-10},338 ${cx-22},348
+        C${cx-30},358 ${cx-28},372 ${cx-22},382
+        C${cx-14},392 ${cx+14},392 ${cx+22},382
+        C${cx+30},372 ${cx+26},358 ${cx+22},348
+        C${cx+14},338 ${cx+2},332 ${cx},340
+        C${cx-2},348 ${cx-14},360 ${cx-22},376
+        C${cx-30},392 ${cx-26},406 ${cx},410
+        C${cx+26},414 ${cx+30},428 ${cx+22},442
+        C${cx+14},456 ${cx},460 ${cx-22},452
+        C${cx-30},448 ${cx-30},438 ${cx-22},428
+        C${cx-14},418 ${cx},416 ${cx},428
+        C${cx},440 ${cx-12},454 ${cx-22},464
+        C${cx-30},474 ${cx-26},490 ${cx},500
+        C${cx+18},506 ${cx+22},516 ${cx+14},528
+        C${cx+6},540 ${cx-6},544 ${cx},552
+      `}
+        fill="none" stroke={c+"0.55)"} strokeWidth={0.85} strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Right loop strand: mirror of left, creating interlocking kolam loops */}
+      <path d={`
+        M${cx},28
+        C${cx+18},40 ${cx+30},55 ${cx+22},70
+        C${cx+14},85 ${cx-14},85 ${cx-22},70
+        C${cx-30},55 ${cx-18},40 ${cx},52
+        C${cx+18},64 ${cx+28},80 ${cx+22},100
+        C${cx+16},120 ${cx+16},128 ${cx+22},138
+        C${cx+30},150 ${cx+26},162 ${cx+14},168
+        C${cx+2},174 ${cx-2},174 ${cx-14},168
+        C${cx-26},162 ${cx-30},150 ${cx-22},138
+        C${cx-14},126 ${cx-14},118 ${cx-22},104
+        C${cx-30},90 ${cx-26},76 ${cx},80
+        C${cx+26},84 ${cx+30},98 ${cx+22},114
+        C${cx+14},130 ${cx+14},148 ${cx+22},162
+        C${cx+30},176 ${cx+26},190 ${cx},196
+        C${cx-26},202 ${cx-30},214 ${cx-22},228
+        C${cx-14},242 ${cx-2},248 ${cx},256
+        C${cx+2},264 ${cx+14},270 ${cx+22},262
+        C${cx+30},254 ${cx+30},242 ${cx+22},232
+        C${cx+14},222 ${cx},218 ${cx},226
+        C${cx},234 ${cx+14},244 ${cx+22},258
+        C${cx+30},272 ${cx+26},284 ${cx},290
+        C${cx-26},296 ${cx-30},308 ${cx-22},322
+        C${cx-14},336 ${cx-2},340 ${cx},348
+        C${cx+2},356 ${cx+14},360 ${cx+22},352
+        C${cx+30},344 ${cx+30},332 ${cx+22},320
+        C${cx+14},308 ${cx},306 ${cx},316
+        C${cx},326 ${cx+10},338 ${cx+22},348
+        C${cx+30},358 ${cx+28},372 ${cx+22},382
+        C${cx+14},392 ${cx-14},392 ${cx-22},382
+        C${cx-30},372 ${cx-26},358 ${cx-22},348
+        C${cx-14},338 ${cx-2},332 ${cx},340
+        C${cx+2},348 ${cx+14},360 ${cx+22},376
+        C${cx+30},392 ${cx+26},406 ${cx},410
+        C${cx-26},414 ${cx-30},428 ${cx-22},442
+        C${cx-14},456 ${cx},460 ${cx+22},452
+        C${cx+30},448 ${cx+30},438 ${cx+22},428
+        C${cx+14},418 ${cx},416 ${cx},428
+        C${cx},440 ${cx+12},454 ${cx+22},464
+        C${cx+30},474 ${cx+26},490 ${cx},500
+        C${cx-18},506 ${cx-22},516 ${cx-14},528
+        C${cx-6},540 ${cx+6},544 ${cx},552
+      `}
+        fill="none" stroke={c+"0.45)"} strokeWidth={0.75} strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Accent loop ovals — frame each pit-row intersection */}
+      {[100,172,240,360,424,490].map((y,i)=>(
+        <g key={`oval${i}`}>
+          <ellipse cx={cx} cy={y} rx={18} ry={10}
+            fill="none" stroke={c+"0.32)"} strokeWidth={0.6} strokeDasharray="3,5"/>
+        </g>
+      ))}
+    </svg>
+  );
+}
+function _SB({label,val,active,ai}) {
+  const acc=ai?"#a06820":"#c8860a";
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+      padding:"7px 14px",borderRadius:10,
+      background:active?"rgba(255,200,60,0.08)":"rgba(0,0,0,0.38)",
+      border:`1.5px solid ${active?acc+"99":"rgba(50,22,4,0.5)"}`,
+      transition:"all 0.3s",minWidth:68}}>
+      <div style={{fontSize:8,letterSpacing:3.5,fontFamily:"Cinzel,serif",textTransform:"uppercase",
+        color:active?acc:"#3a2408",animation:active?"pulse 1.2s infinite":"none"}}>{label}</div>
+      <div style={{fontSize:24,fontWeight:"bold",fontFamily:"Georgia,serif",
+        color:active?acc:"#5a3810",transition:"color 0.3s",
+        textShadow:active?`0 0 18px ${acc}55`:"none",lineHeight:1}}>{val}</div>
+      <div style={{fontSize:7.5,color:"#4a2808",fontFamily:"Georgia,serif"}}>shells</div>
+    </div>
+  );
+}
+function Leg() {
+  return (
+    <svg width="22" height="38" viewBox="0 0 22 38" style={{display:"block"}}>
+      <defs>
+        <linearGradient id="legGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#8a3e08"/>
+          <stop offset="40%" stopColor="#5a2004"/>
+          <stop offset="100%" stopColor="#7a3408"/>
+        </linearGradient>
+      </defs>
+      <rect x={6} y={0} width={10} height={26} rx={2} fill="url(#legGrad)"/>
+      <ellipse cx={11} cy={10} rx={6} ry={5} fill="url(#legGrad)"/>
+      <ellipse cx={11} cy={20} rx={5} ry={4} fill="url(#legGrad)"/>
+      <ellipse cx={11} cy={28} rx={9} ry={5} fill="url(#legGrad)"/>
+      <ellipse cx={11} cy={30} rx={9} ry={4} fill="#1e0800"/>
+      <ellipse cx={11} cy={32} rx={11} ry={5} fill="url(#legGrad)"
+        style={{filter:"drop-shadow(0 4px 8px rgba(0,0,0,0.8))"}}/>
+    </svg>
+  );
+}
+function useWindowSize() {
+  const [size, setSize] = React.useState({w: window.innerWidth, h: window.innerHeight});
+  React.useEffect(()=>{
+    const handler = ()=>{
+      setTimeout(()=>setSize({w:window.innerWidth, h:window.innerHeight}), 100);
+    };
+    window.addEventListener("resize", handler);
+    window.addEventListener("orientationchange", handler);
+    return ()=>{
+      window.removeEventListener("resize", handler);
+      window.removeEventListener("orientationchange", handler);
+    };
+  },[]);
+  return size;
+}
+
+// Fix #3: Hard AI — full relay-chain simulation so chained captures are correctly valued.
+// _simulateChain recursively follows relay turns from a given board state,
+// accumulating the total gain across all legs of the turn.
+const _simulateChain = (board, startPit, player, capAt, depth=0) => {
+  if(depth > 20) return { totalGain: 0, finalBoard: board }; // safety cap
+  const { steps, totalGain, finalBoard } = _st(board, startPit, player, capAt);
+  // Fix #24: find the last relay step — it always appears just before the end step.
+  // The old code used indexOf(s) === steps.length-2 which fails when capture/triple
+  // steps are interleaved before the end, causing relay chains to be undervalued.
+  const lastRelay = [...steps].reverse().find(s => s.type === "relay");
+  const lastStep  = steps[steps.length - 1];
+  if(lastRelay && lastStep && lastStep.type !== "end") {
+    const next = _simulateChain(finalBoard, lastRelay.pit, player, capAt, depth+1);
+    return { totalGain: totalGain + next.totalGain, finalBoard: next.finalBoard };
+  }
+  return { totalGain, finalBoard };
+};
+
+// Hard AI: 1-ply lookahead with full relay-chain awareness.
+// Fix #19: the old loop kept calling findIndex on the same steps array each iteration,
+// always finding the same relay step. Now uses _simulateChain which correctly recurses
+// through every relay leg and accumulates the true total gain for the full turn.
+const _aiHard = (board, capAt) => {
+  const ms = _lm(board, 1);
+  if (!ms.length) return -1;
+  const scoreMove = (m) => {
+    const { totalGain: chainGain, finalBoard: chainBoard } = _simulateChain(board, m, 1, capAt);
+    let score = chainGain * 100;
+    // Bonus if first leg involves a relay (rewards aggressive multi-leg turns)
+    const { steps } = _st(board, m, 1, capAt);
+    if(steps.some(s => s.type === "relay")) score += 30;
+    // Subtract best reply the opponent can make after our full chain
+    const oppMoves = _lm(chainBoard, 0);
+    if(oppMoves.length > 0) {
+      const oppBest = Math.max(...oppMoves.map(om => {
+        const { totalGain: og } = _st(chainBoard, om, 0, capAt);
+        return og;
+      }));
+      score -= oppBest * 80;
+    }
+    score += board[m]; // tie-break: prefer pits with more shells
+    return score;
+  };
+  return ms.reduce((best, m) => scoreMove(m) > scoreMove(best) ? m : best, ms[0]);
+};
+
+function Pallankuzhi() {
+  const [board,  setBoard]  = useState(()=>_ib(6));
+  const [scores, setScores] = useState([0,0]);
+  const [turn,   setTurn]   = useState(0);
+  const [over,   setOver]   = useState(false);
+  const [result, setResult] = useState(null);
+  const [introStep, setIntroStep] = useState(0);
+  const [gameMode, setGameMode] = useState("ai"); // "ai"|"pvp"|"online"|"matchmaking"
+  // ── Online & Matchmaking state ──
+  const [onlineRole,   setOnlineRole]   = useState(null);   // "host"|"guest"
+  const [onlineStep,   setOnlineStep]   = useState("menu"); // menu|create|join|waiting|searching|found|connected|error
+  const [roomCode,     setRoomCode]     = useState("");
+  const [joinInput,    setJoinInput]    = useState("");
+  const [onlineStatus, setOnlineStatus] = useState("");
+  const [matchPlayers, setMatchPlayers] = useState(0);      // online player count
+  const peerRef    = useRef(null);
+  const roomTimeoutRef = useRef(null);
+  const connRef    = useRef(null);
+  const matchRef      = useRef(null);   // Firebase matchmaking push ref
+  const matchQueryRef = useRef(null);   // Fix BUG15: query ref for listener cleanup
+  const myMatchId     = useRef(null);   // my entry key in Firebase
+  // Fix #5: prevent guest from taking a turn before the host config message arrives
+  const [waitingForConfig, setWaitingForConfig] = useState(false);
+  const [resignConfirm, setResignConfirm] = useState(false); // Fix #22: two-tap resign safety
+  const _resignTimer = useRef(null); // Fix #26: cleanup ref for resign confirm timeout
+  // Fix #6: live ref for onlineStep so setTimeout callbacks never read stale closure values
+  const onlineStepRef = useRef("menu");
+  const [orient, setOrient] = useState(null); // null=auto, "portrait", "landscape"
+  const [muteAudio, setMuteAudio] = useState(false);
+  const [aiDifficulty, setAiDifficulty] = useState("hard"); // "easy" | "hard"
+  const {w: winW, h: winH} = useWindowSize();
+  const isDesktop = winW >= 1024;
+  const isTablet  = winW >= 768 && winW < 1024;
+  const autoOrient = isDesktop ? "landscape" : (winW > winH ? "landscape" : "portrait");
+  // Fix #2: only clear manual orientation lock when the device physically flips
+  // (portrait↔landscape), not on every pixel-level resize event.
+  const _prevAutoOrient = useRef(autoOrient);
+  React.useEffect(()=>{
+    if(autoOrient !== _prevAutoOrient.current) {
+      _prevAutoOrient.current = autoOrient;
+      if(orient !== null) setOrient(null);
+    }
+  },[autoOrient, orient]);
+  const effectiveOrient = orient || autoOrient;
+  const isLandscape = effectiveOrient === "landscape";
+  // Pit scale: desktop bigger, tablet normal, mobile normal
+  const pitScale = isDesktop ? 1.15 : isTablet ? 0.95 : 0.82;
+  const [shellCount, setShellCount] = useState(6); // 6, 12, or 24
+  const [msg,    setMsg]    = useState("Your turn — tap a pit in YOUR column (left)");
+  const [anim,   setAnim]   = useState({lit:null,cap:null,relay:null});
+  const [hover,  setHover]  = useState(null);
+  const [busy,   setBusy]   = useState(false);
+  const [handAnim, setHandAnim] = useState({pit:null, pose:"hover", player:0});
+  const [flySeeds, setFlySeeds] = useState([]);
+  const _fsi = useRef(0);
+  const _llp = useRef(null);
+  const _br  = useRef(false);
+  const _tr = useRef(null);
+  const pitRefs  = useRef({});
+  const scoreRefs = useRef({0: null, 1: null});
+  // Fix #14: use React refs for PeerJS callbacks instead of window globals
+  // This avoids polluting the global namespace and makes testing cleaner.
+  const _remoteMoveRef  = useRef(null);
+  const _rematchRef     = useRef(null);
+  // Fix #3: live refs so window._onlineRemoteMove always reads current values,
+  // not stale closure captures from its useEffect registration render.
+  const _boardRef      = useRef(null);
+  const _scoresRef     = useRef(null);
+  const _turnRef       = useRef(null);
+  const _overRef       = useRef(null);
+  const _shellCountRef = useRef(null);
+  const [tripleFlies, setTripleFlies] = useState([]);
+  const [tripleFlash, setTripleFlash] = useState({0:false,1:false});
+  const _tfi = useRef(0);
+  const _fc = useRef({ [_FH]: new Set(), [_FA]: new Set() });
+  const [_sra, announce] = _ula();
+  const _rm = _uprm();
+  useEffect(()=>()=>clearTimeout(_tr.current),[]);
+  // Fix #3: keep live refs in sync so _onlineRemoteMove never uses stale closures
+  useEffect(()=>{ _boardRef.current      = board;      }, [board]);
+  useEffect(()=>{ _scoresRef.current     = scores;     }, [scores]);
+  useEffect(()=>{ _turnRef.current       = turn;       }, [turn]);
+  useEffect(()=>{ _overRef.current       = over;       }, [over]);
+  useEffect(()=>{ _shellCountRef.current = shellCount; }, [shellCount]);
+  // Fix #6: keep onlineStepRef in sync so setTimeout callbacks don't read stale closures
+  useEffect(()=>{ onlineStepRef.current  = onlineStep; }, [onlineStep]);
+
+  // ── Pit mirror map (host↔guest board flip) ──
+  const _mirror = {0:13,1:12,2:11,3:10,4:9,5:8,6:7,7:6,8:5,9:4,10:3,11:2,12:1,13:0};
+
+  // ── Cleanup peers/firebase on unmount ──
+  useEffect(()=>()=>{
+    _cleanupPeer();
+    _cleanupMatch();
+  },[]);
+
+  const _cleanupPeer = ()=>{
+    if(connRef.current){try{connRef.current.close();}catch(e){} connRef.current=null;}
+    if(peerRef.current){try{peerRef.current.destroy();}catch(e){} peerRef.current=null;}
+    if(roomTimeoutRef.current){clearTimeout(roomTimeoutRef.current); roomTimeoutRef.current=null;}
+  };
+  const _cleanupMatch = ()=>{
+    // Fix: matchRef holds the push ref, not the query — use matchQueryRef for listener cleanup
+    if(matchQueryRef.current){try{matchQueryRef.current.off();}catch(e){} matchQueryRef.current=null;}
+    if(matchRef.current){matchRef.current=null;}
+    if(myMatchId.current && window._fbdb){
+      try{window._fbdb.ref('matchmaking/'+myMatchId.current).remove();}catch(e){}
+      myMatchId.current=null;
+    }
+  };
+
+  // ── Send move to opponent + sync resulting board state ──
+  const sendOnlineMove = useCallback((pit, resultBoard, resultScores)=>{
+    if(connRef.current && connRef.current.open){
+      // Send move first so opponent can start animating
+      connRef.current.send({type:"move", pit});
+      // Immediately follow with the resulting board — mover is single source of truth
+      connRef.current.send({
+        type:"sync",
+        board: resultBoard,
+        scores: resultScores,
+        fcH: [..._fc.current[_FH]],
+        fcA: [..._fc.current[_FA]],
+      });
+    }
+  },[]);
+
+  // ── Send rematch request to opponent ──
+  const sendRematch = useCallback(()=>{
+    if(connRef.current && connRef.current.open) connRef.current.send({type:"rematch"});
+  },[]);
+
+  // ── Wire up a PeerJS connection (shared by host/guest/matchmaking) ──
+  const _wireConn = useCallback((conn, role, sc)=>{
+    connRef.current = conn;
+    conn.on("open",()=>{
+      // Clear the room-wait timeout — connection succeeded
+      if(roomTimeoutRef.current){clearTimeout(roomTimeoutRef.current);roomTimeoutRef.current=null;}
+      setOnlineStatus("Connected! Starting game…");
+      // Fix: send config immediately inside open — not with a setTimeout guess
+      if(role==="host"){
+        conn.send({type:"config", shellCount: sc});
+        setOnlineRole("host");
+        setGameMode("online");
+        setMsg("You go first — pick a pit on YOUR side (left)");
+        setIntroStep(4);
+      } else {
+        // Fix #5: guest is connected but hasn't received config yet — lock board interactions
+        setWaitingForConfig(true);
+      }
+    });
+    conn.on("data",(data)=>{
+      if(data.type==="config"){
+        // guest receives config — unlock board now that game state is known
+        setWaitingForConfig(false);
+        setShellCount(data.shellCount);
+        setBoard(_ib(data.shellCount));
+        setScores([0,0]);
+        setTurn(0);
+        setOver(false);
+        // Fix #4: reset forbidden-pit claimants so prior game state doesn't bleed in
+        _fc.current={ [_FH]: new Set(), [_FA]: new Set() };
+        setOnlineRole("guest");
+        setGameMode("online");
+        setMsg("Opponent moves first — waiting…");
+        setIntroStep(4);
+      } else if(data.type==="move"){
+        // Mirror opponent's pit index into our board perspective, then simulate
+        _remoteMoveRef.current && _remoteMoveRef.current(_mirror[data.pit]);
+      } else if(data.type==="sync"){
+        // Fix desync: mover sends their resulting board — mirror it and write into live refs
+        // so _remoteMoveRef always simulates from the correct state
+        const mirroredBoard = data.board.map((_,i)=>data.board[_mirror[i]]);
+        // Mirror forbidden claimants: their player-0 ↔ our player-1
+        _fc.current = {
+          [_FH]: new Set((data.fcA||[]).map(p=>1-p)),
+          [_FA]: new Set((data.fcH||[]).map(p=>1-p)),
+        };
+        _boardRef.current  = mirroredBoard;
+        _scoresRef.current = data.scores;
+      } else if(data.type==="rematch"){
+        // Guest requested rematch — if we are host, restart and send back
+        if(onlineRole==="host"){
+          // Host resets first, then tells guest to reset with matching shellCount
+          _rematchRef.current && _rematchRef.current();
+          if(connRef.current && connRef.current.open)
+            connRef.current.send({type:"restart", shellCount: _shellCountRef.current});
+        } else {
+          // We are guest receiving host's rematch signal — just reset
+          _rematchRef.current && _rematchRef.current();
+        }
+      } else if(data.type==="restart"){
+        // Host is authoritative — reset to the shellCount they specify
+        const sc = data.shellCount || _shellCountRef.current;
+        setShellCount(sc);
+        _shellCountRef.current = sc;
+        _rematchRef.current && _rematchRef.current();
+      } else if(data.type==="resign"){
+        // Fix #22 + Fix #32: stop any running animation before showing result,
+        // otherwise the animation timer fires on top of the win overlay.
+        clearTimeout(_tr.current);
+        _br.current = false;
+        setBusy(false);
+        setAnim({lit:null,cap:null,relay:null});
+        setHandAnim({pit:null,pose:"hover",player:0});
+        const b = _boardRef.current || Array(14).fill(0);
+        const s = _scoresRef.current || [0,0];
+        const totalShells = b.reduce((a,v)=>a+v,0);
+        const finalScores = [s[0]+totalShells, s[1]];
+        setBoard(Array(14).fill(0));
+        setScores(finalScores);
+        setOver(true);
+        setResult("win");
+        setMsg("Opponent resigned — You win!");
+        sfx.win();
+      }
+    });
+    conn.on("close",()=>{
+      // Fix #37: if game is still running when opponent disconnects, end the game
+      // so the player isn't stuck on a frozen board.
+      setOnlineStatus("Opponent disconnected.");
+      if(!_overRef.current) {
+        clearTimeout(_tr.current);
+        _br.current = false;
+        setBusy(false);
+        setAnim({lit:null,cap:null,relay:null});
+        setHandAnim({pit:null,pose:"hover",player:0});
+        const b = _boardRef.current || Array(14).fill(0);
+        const s = _scoresRef.current || [0,0];
+        const totalShells = b.reduce((a,v)=>a+v,0);
+        setBoard(Array(14).fill(0));
+        setScores([s[0]+totalShells, s[1]]);
+        setOver(true);
+        setResult("win");
+        setMsg("Opponent disconnected — You win!");
+        sfx.win();
+      }
+    });
+    conn.on("error",(err)=>{
+      setOnlineStatus("Connection error: "+(err&&err.type||"unknown"));
+      if(!_overRef.current){
+        clearTimeout(_tr.current);
+        _br.current = false; setBusy(false);
+        setAnim({lit:null,cap:null,relay:null});
+        setHandAnim({pit:null,pose:"hover",player:0});
+        setOver(true);
+        setResult("lose");
+        setMsg("Connection lost.");
+        sfx.lose();
+      }
+    });
+  },[]);
+
+  // ── HOST: create private room ──
+  const createRoom = useCallback((sc)=>{
+    _cleanupPeer();
+    // Fix: pad to ensure exactly 4 alphanumeric chars — Math.random can produce short strings
+    const raw = Math.random().toString(36).substring(2).toUpperCase().replace(/[^A-Z0-9]/g,"");
+    const code = (raw+"XXXX").substring(0,4);
+    setRoomCode(code);
+    setOnlineStep("waiting");
+    setOnlineStatus("Room ready — share the code!");
+    const peer = new Peer("palla-"+code);
+    peerRef.current = peer;
+    peer.on("error",(e)=>{ setOnlineStep("error"); setOnlineStatus("Error: "+e.type); });
+    peer.on("connection",(conn)=>{
+      // Reject a second connection if one is already active
+      if(connRef.current && connRef.current.open){ conn.close(); return; }
+      _wireConn(conn,"host",sc);
+    });
+    // Fix #6: use onlineStepRef (not stale closure) to read current onlineStep in the timeout
+    roomTimeoutRef.current = setTimeout(()=>{
+      if(onlineStepRef.current==="waiting"){
+        _cleanupPeer();
+        setOnlineStep("error");
+        setOnlineStatus("No one joined in 60 seconds. Check the code and try again.");
+      }
+    }, 60000);
+  },[_wireConn]);
+
+  // ── GUEST: join private room ──
+  const joinRoom = useCallback((code, sc)=>{
+    // Fix #8: sanitize input — only allow exactly 4 alphanumeric characters
+    const sanitized = (code||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4);
+    if(sanitized.length<4){setOnlineStatus("Enter the 4-letter code from your friend.");return;}
+    _cleanupPeer();
+    setOnlineStep("waiting");
+    setOnlineStatus("Connecting…");
+    const peer = new Peer();
+    peerRef.current = peer;
+    peer.on("open",()=>{
+      const conn = peer.connect("palla-"+sanitized);
+      _wireConn(conn,"guest",sc);
+    });
+    peer.on("error",()=>{ setOnlineStep("error"); setOnlineStatus("Room not found: "+sanitized+". Check the code."); });
+    // 30-second timeout — if connection never opens, show an error
+    roomTimeoutRef.current = setTimeout(()=>{
+      if(!connRef.current||!connRef.current.open){
+        _cleanupPeer();
+        setOnlineStep("error");
+        setOnlineStatus("Could not connect to room “"+sanitized+"”. Check the code and try again.");
+      }
+    }, 30000);
+  },[_wireConn]);
+
+  // ── MATCHMAKING: find a random opponent via Firebase ──
+  const startMatchmaking = useCallback((sc)=>{
+    _cleanupPeer();
+    _cleanupMatch();
+    setOnlineStep("searching");
+    setOnlineStatus("Searching for an opponent…");
+
+    const db = window._fbdb;
+
+    // Fix App Check timing: wait for a valid token before any Firebase read
+    firebase.appCheck().getToken(false)
+      .then(()=>{
+        const peer = new Peer();
+        peerRef.current = peer;
+
+        peer.on("open",(peerId)=>{
+          const queueRef = db.ref("matchmaking");
+          queueRef.orderByChild("status").equalTo("waiting").limitToFirst(1).once("value", (snap)=>{
+            const data = snap.val();
+            const keys = data ? Object.keys(data) : [];
+            if(keys.length > 0){
+              const hostKey = keys[0];
+              db.ref("matchmaking/"+hostKey).transaction((current)=>{
+                if(current && current.status === "waiting"){
+                  return {...current, status:"matched"};
+                }
+                return; // abort — already claimed
+              }, (error, committed, snapshot)=>{
+                if(!committed || error){
+                  _registerAsHost(db, peer, peerId, sc);
+                  return;
+                }
+                const hostPeerId = snapshot.val().peerId;
+                const hostSc = snapshot.val().shellCount || sc;
+                const myRef = db.ref("matchmaking").push({
+                  status:"matched", peerId, shellCount:hostSc, ts: Date.now()
+                });
+                myMatchId.current = myRef.key;
+                matchRef.current = myRef;
+                setOnlineStatus("Opponent found! Connecting…");
+                const conn = peer.connect(hostPeerId);
+                _wireConn(conn,"guest",hostSc);
+              });
+            } else {
+              _registerAsHost(db, peer, peerId, sc);
+            }
+          });
+        });
+
+        peer.on("error",(e)=>{ setOnlineStep("error"); setOnlineStatus("Connection error: "+e.type); });
+      })
+      .catch((err)=>{
+        setOnlineStep("error");
+        setOnlineStatus("App Check failed — try reloading. ("+err.message+")");
+      });
+  },[_wireConn, _registerAsHost]);
+
+  // Helper: register this peer as a waiting host in Firebase
+  const _registerAsHost = useCallback((db, peer, peerId, sc)=>{
+    const myRef = db.ref("matchmaking").push({
+      status:"waiting", peerId, shellCount:sc, ts: Date.now()
+    });
+    myMatchId.current = myRef.key;
+    matchRef.current = myRef;
+
+    // Fix #17: onDisconnect ensures Firebase removes this entry instantly if the tab
+    // closes or network drops — prevents ghost "waiting" entries slowing matchmaking.
+    myRef.onDisconnect().remove();
+
+    setOnlineStatus("Waiting for an opponent anywhere in the world…");
+
+    // Listen for incoming PeerJS connection
+    // Capture refs at registration time to avoid stale closure
+    const capturedMatchRef = myRef;
+    const capturedMatchId = myRef.key;
+    peer.on("connection",(conn)=>{
+      // Reject a second connection if one is already active
+      if(connRef.current && connRef.current.open){ conn.close(); return; }
+      // Manually remove this host entry using captured ref (not stale matchRef.current)
+      try { capturedMatchRef.off(); capturedMatchRef.remove(); } catch(e){}
+      if(myMatchId.current === capturedMatchId) myMatchId.current = null;
+      if(matchRef.current === capturedMatchRef) matchRef.current = null;
+      _wireConn(conn,"host",sc);
+      setOnlineStatus("Opponent found! Connecting…");
+    });
+
+    // Auto-cleanup stale entry after 2 minutes
+    setTimeout(()=>{
+      if(myMatchId.current === capturedMatchId){
+        db.ref("matchmaking/"+capturedMatchId).remove();
+        myMatchId.current=null;
+      }
+    }, 120000);
+  },[_wireConn]);
+
+
+
+  // Track online player count — properly cleaned up via useEffect
+  useEffect(()=>{
+    const db = window._fbdb;
+    if(!db) return;
+    const countRef = db.ref("online_count");
+    countRef.transaction(c=>(c||0)+1);
+    countRef.on("value",(s)=>setMatchPlayers(s.val()||0));
+    return ()=>{
+      // Fix #25: decrement before removing listener — reversed order previously meant
+      // the off() could fire before the transaction completed, losing the decrement.
+      countRef.transaction(c=>Math.max((c||1)-1,0));
+      countRef.off();
+    };
+  },[]);
+
+  // Music: play on all pages except game board (step 4)
+  useEffect(()=>{
+    if(introStep === 4) {
+      sfx.stopIntro();
+    } else if(introStep === 0) {
+      sfx.stopIntro();
+    } else if(introStep !== 4 && introStep !== 0) {
+      // Covers numeric steps 1,2,3 AND string "online" — restart music if stopped.
+      // Fix: explicitly exclude 0 and 4 rather than relying on `> 0` which coerces strings.
+      if(!sfx._introGain && !window._sfxMuted) sfx.startIntro();
+    }
+  },[introStep]);
+  const _endG = useCallback((fb,fs)=>{
+    const f=[...fs];
+    for(let i=0;i<7;i++)  { if(i!==_FH)  f[0]+=fb[i]; }
+    for(let i=7;i<14;i++) { if(i!==_FA) f[1]+=fb[i]; }
+    // Fix #5: fi is the forEach index (0 for _FH/player-0’s side, 1 for _FA/player-1’s side).
+    // This intentionally doubles as the side-owner player index — keep array order intact.
+    [_FH, _FA].forEach((fp,fi) => {
+      const sideOwner = fi; // 0 = player 0 owns _FH pit, 1 = player 1 owns _FA pit
+      const shells = fb[fp];
+      if(!shells) return;
+      const claimants = [..._fc.current[fp]];
+      if(claimants.length === 1) {
+        // Only one player claimed this forbidden pit — they get all shells
+        f[claimants[0]] += shells;
+      } else if(claimants.length >= 2) {
+        // Both players claimed it — split equally, odd shell goes to the pit's side owner
+        const half = Math.floor(shells / 2);
+        f[0] += half;
+        f[1] += half;
+        if(shells % 2 !== 0) {
+          // Odd shell goes to the side owner (sideOwner = fi, kept explicit)
+          f[sideOwner] += 1;
+        }
+      } else {
+        // Nobody claimed it — split equally between both players
+        const half = Math.floor(shells / 2);
+        f[0] += half;
+        f[1] += half;
+        if(shells % 2 !== 0) f[sideOwner] += 1; // odd shell to side owner
+      }
+    });
+    _br.current=false; setBusy(false);
+    setBoard(Array(14).fill(0)); setScores(f); setOver(true);
+    setAnim({lit:null,cap:null,relay:null});
+    const isOM=gameMode==="online"||gameMode==="matchmaking"; const p1n=gameMode==="pvp"?"Player 1":isOM?"You":"You", p2n=gameMode==="pvp"?"Player 2":isOM?"Opponent":"AI";
+    const resultMsg = f[0]>f[1]?`🎉 ${p1n} Wins! ${f[0]}–${f[1]}`:f[0]<f[1]?`${gameMode==="pvp"?"🎮":isOM?"🌍":"🤖"} ${p2n} Wins! ${f[1]}–${f[0]}`:`🤝 Draw! ${f[0]}–${f[1]}`;
+    setMsg(resultMsg);
+    setResult(f[0]>f[1]?"win":f[0]<f[1]?"lose":"draw");
+    announce(`Game over. ${f[0]>f[1]?`${p1n} wins with ${f[0]} shells`:f[0]<f[1]?`${p2n} wins with ${f[1]} shells`:`Draw`}.`);
+    setHandAnim({pit:null,pose:"hover",player:0});
+    if(f[0]>f[1]) sfx.win(); else if(f[0]<f[1]) sfx.lose(); else sfx.draw();
+  },[announce,gameMode]);
+  const _finT = useCallback((fb,fs,player)=>{
+    const nxt=player===0?1:0;
+    const nm=_lm(fb,nxt), mm=_lm(fb,player);
+    if(!nm.length&&!mm.length){_endG(fb,fs);return;}
+    if(!nm.length){
+      _br.current=false; setBusy(false);
+      setAnim({lit:null,cap:null,relay:null}); setBoard(fb); setScores(fs); setTurn(player);
+      const isOnlineSkip=gameMode==="online"||gameMode==="matchmaking";
+      const skMsg=gameMode==="pvp"?(player===0?"Player 2 has no moves — Player 1 again!":"Player 1 has no moves — Player 2 again!"):isOnlineSkip?(player===0?"Opponent has no moves — your turn again!":"You have no moves — Opponent goes again!"):(player===0?"AI has no moves — your turn again!":"You have no moves — AI goes again!");
+      setMsg(skMsg); announce(skMsg); return;
+    }
+    _br.current=false; setBusy(false);
+    setAnim({lit:null,cap:null,relay:null}); setBoard(fb); setScores(fs); setTurn(nxt);
+    const isOnlineMode=gameMode==="online"||gameMode==="matchmaking"; const turnMsg=gameMode==="pvp"?(nxt===0?"Player 1 — pick a pit!":"Player 2 — pick a pit!"):isOnlineMode?(nxt===0?"Your turn — pick a pit!":"Opponent’s turn — waiting…"):(nxt===0?"Your turn — pick a pit!":"AI is thinking…");
+    setMsg(turnMsg); announce(turnMsg);
+    setHandAnim({pit:null,pose:"hover",player:nxt});
+  },[_endG,announce,gameMode]);
+  const _rA = useCallback((steps,snapB,snapS,player,skipAnim=false)=>{
+    _br.current=true; setBusy(true);
+    if(skipAnim) {
+      const last=steps[steps.length-1];
+      const fs=[...snapS];
+      if(last.gains) { fs[0]=snapS[0]+last.gains[0]; fs[1]=snapS[1]+last.gains[1]; }
+      else { fs[player]+=last.gain; }
+      setBoard([...last.board]); setScores(fs);
+      setAnim({lit:null,cap:null,relay:null});
+      setHandAnim({pit:null,pose:"hover",player});
+      // Announce total shells captured this turn (gains are per-player incremental amounts)
+      const totalGainSkip = last.gains ? last.gains[player] : last.gain;
+      if(totalGainSkip>0) announce(`Captured ${totalGainSkip} shells.`);
+      _tr.current=setTimeout(()=>_finT(last.board,fs,player),300);
+      return;
+    }
+    let idx=0; const DELAY=380;
+    const tick=()=>{
+      if(idx>=steps.length) return;
+      const s=steps[idx];
+      setBoard([...s.board]);
+      const ls=[...snapS];
+      if(s.gains) { ls[0]=snapS[0]+s.gains[0]; ls[1]=snapS[1]+s.gains[1]; }
+      else { ls[player]=snapS[player]+s.gain; }
+      setScores(ls);
+      if(s.type==="pick"){
+        setAnim({lit:s.pit,cap:null,relay:null});
+        setMsg(player===0?"Pick up the seeds…":(gameMode==="pvp"?"Player 2 picking up…":(gameMode==="online"||gameMode==="matchmaking")?"Opponent picking up…":"AI picking up…"));
+        setHandAnim({pit:s.pit,pose:"pinch",player});
+        _llp.current = s.pit;
+        sfx.pick();
+      } else if(s.type==="sow"){
+        const fromPit = _llp.current;
+        const toPit   = s.pit;
+        if(fromPit !== null && pitRefs.current[fromPit] && pitRefs.current[toPit]) {
+          const toEl     = pitRefs.current[toPit];
+          const toRect   = toEl.getBoundingClientRect();
+          // Shell originates from hand position above the destination pit
+          const handRect = {
+            left: toRect.left,
+            top:  toRect.top - 55,
+            width: toRect.width,
+            height: 10,
+          };
+          const evId = _fsi.current++;
+          // Pass the live DOM element so FlyArc re-reads its rect after the float is paused
+          setFlySeeds(prev => [...prev, { id:evId, fromRect: handRect, toPitEl: toEl }]);
+          // Fix: store timer so it can be cleared on reset/unmount
+          const fsTimer = setTimeout(() => setFlySeeds(prev => prev.filter(e => e.id !== evId)), 450);
+          _tr.current = fsTimer; // reuse _tr to cancel if reset fires (overwritten by next step timer anyway)
+        }
+        _llp.current = toPit;
+        setAnim({lit:s.pit,cap:null,relay:null});
+        setHandAnim({pit:s.pit,pose:"sow",player});
+        sfx.sow();
+      } else if(s.type==="relay"){
+        setAnim({lit:null,cap:null,relay:s.pit});
+        setMsg(player===0?"⚡ Relay! Continuing…":(gameMode==="pvp"?"⚡ P2 Relay!":(gameMode==="online"||gameMode==="matchmaking")?"⚡ Opponent Relay!":"⚡ AI relay!"));
+        announce(player===0?"Relay! Continuing your turn.":(gameMode==="pvp"?"Player 2 relay.":(gameMode==="online"||gameMode==="matchmaking")?"Opponent relay.":"AI relay."));
+        setHandAnim({pit:s.pit,pose:"pinch",player});
+        _llp.current = s.pit;
+        sfx.relay();
+      } else if(s.type==="capture"){
+        setAnim({lit:null,cap:s.pit,relay:null});
+        const _isOnlineCapture=gameMode==="online"||gameMode==="matchmaking";
+        const capMsg=player===0?`Captured ${s.amount} shells!`:(gameMode==="pvp"?`P2 captured ${s.amount}!`:_isOnlineCapture?`Opponent captured ${s.amount} shells.`:`AI captured ${s.amount} shells.`);
+        setMsg(player===0?`✨ Captured ${s.amount}!`:(gameMode==="pvp"?`✨ P2 captured ${s.amount}!`:_isOnlineCapture?`🌍 Opponent captured ${s.amount}!`:`🤖 AI captured ${s.amount}!`));
+        announce(capMsg);
+        setHandAnim({pit:s.pit,pose:"scoop",player});
+        sfx.capture(s.amount);
+      } else if(s.type==="triple"){
+        setAnim({lit:null,cap:s.pit,relay:null});
+        const tripleOwner = s.owner;
+        const capN = shellCount===6?3:shellCount===12?6:12;
+        const _isOnlineTriple=gameMode==="online"||gameMode==="matchmaking";
+        const tripleMsg = tripleOwner===0 ? `✨ Magic! +${capN} captured!` : (gameMode==="pvp" ? `✨ P2 Magic! +${capN}!` : _isOnlineTriple ? `🌍 Opponent Magic! +${capN}!` : `🤖 AI Magic! +${capN}!`);
+        setMsg(tripleMsg);
+        announce(`Magic capture! Pit ${s.pit+1} had ${capN} shells, taken by ${tripleOwner===0?(gameMode==="pvp"?"Player 1":"you"):(gameMode==="pvp"?"Player 2":_isOnlineTriple?"opponent":"AI")}.`);
+        const pitEl = pitRefs.current[s.pit];
+        const scoreEl = scoreRefs.current[tripleOwner];
+        if(pitEl && scoreEl) {
+          const evId = _tfi.current++;
+          setTripleFlies(prev => [...prev, { id: evId, fromEl: pitEl, toEl: scoreEl, owner: tripleOwner, capN }]);
+        }
+      } else if(s.type==="end"){
+        setAnim({lit:null,cap:null,relay:null});
+        setHandAnim({pit:null,pose:"hover",player});
+      }
+      idx++;
+      if(idx<steps.length){_tr.current=setTimeout(tick,DELAY);}
+      else{
+        const last=steps[steps.length-1];
+        const fs=[...snapS];
+        if(last.gains) { fs[0]=snapS[0]+last.gains[0]; fs[1]=snapS[1]+last.gains[1]; }
+        else { fs[player]+=last.gain; }
+        _tr.current=setTimeout(()=>_finT(last.board,fs,player),600);
+      }
+    };
+    tick();
+  },[_finT,announce,shellCount,gameMode]);
+  const _hC = useCallback((ci, player=0)=>{
+    // Fix #5: block interaction while guest is waiting for the host config message
+    if(waitingForConfig) return;
+    if(_br.current||over||turn!==player) return;
+    if(player===0 && (ci===_FH||ci===_FA||board[ci]===0||ci>6)) return;
+    if(player===1 && (ci===_FH||ci===_FA||board[ci]===0||ci<7)) return;
+    // Online: only local player (player-0 from their view) can trigger moves
+    if((gameMode==="online"||gameMode==="matchmaking") && player!==0) return;
+    const capAt = shellCount===6?3:shellCount===12?6:12;
+    const {steps,_cf}=_st(board,ci,player,capAt);
+    if(_cf!==null) _fc.current[_cf].add(player);
+    // Fix desync: compute resulting board BEFORE animating, send move + sync to opponent
+    if(gameMode==="online"||gameMode==="matchmaking"){
+      const last=steps[steps.length-1];
+      const resultScores=[...scores];
+      if(last.gains){resultScores[0]=scores[0]+last.gains[0];resultScores[1]=scores[1]+last.gains[1];}
+      else{resultScores[player]=scores[player]+last.gain;}
+      sendOnlineMove(ci, last.board, resultScores);
+    }
+    announce(`Picked pit ${ci+1} with ${board[ci]} shells.`);
+    _rA(steps,board,scores,player,_rm);
+  },[board,scores,shellCount,over,turn,_rA,announce,_rm,gameMode,sendOnlineMove]);
+
+  // Expose remote move handler for PeerJS data callbacks (outside React)
+  // Fix #3: reads live refs instead of stale closure values — registered once, always current.
+  useEffect(()=>{
+    _remoteMoveRef.current = (ci)=>{
+      // Fix: remote moves are always player-1 from the receiver's perspective
+      const board      = _boardRef.current;
+      const scores     = _scoresRef.current;
+      const turn       = _turnRef.current;
+      const over       = _overRef.current;
+      const shellCount = _shellCountRef.current;
+      if(_br.current||over||turn!==1) return;
+      // Opponent's pits arrive already mirrored to our 7-13 range
+      if(!board||ci===_FH||ci===_FA||board[ci]===0||ci<7||ci>13) return;
+      const capAt = shellCount===6?3:shellCount===12?6:12;
+      const {steps,_cf}=_st(board,ci,1,capAt);
+      if(_cf!==null) _fc.current[_cf].add(1);
+      _rA(steps,board,scores,1,_rm);
+    };
+    return ()=>{ _remoteMoveRef.current=null; };
+  },[_rA,_rm]);
+
+  // reset — stable identity via useCallback so _onlineRematch always calls the current version
+  const reset = useCallback(()=>{
+    clearTimeout(_tr.current);
+    _br.current=false; setBusy(false);
+    setBoard(_ib(shellCount)); setScores([0,0]); setTurn(0); setOver(false);
+    setAnim({lit:null,cap:null,relay:null}); setHover(null);
+    const isOnline = gameMode==="online"||gameMode==="matchmaking";
+    const isGuest  = isOnline && onlineRole==="guest";
+    setMsg(gameMode==="pvp"?"Player 1 — pick a pit in your column (left)":isGuest?"Opponent moves first — waiting…":isOnline?"Your turn — pick a pit on YOUR side (left)":"Your turn — tap a pit in YOUR column (left)");
+    setHandAnim({pit:null,pose:"hover",player:0});
+    setFlySeeds([]);
+    setTripleFlies([]);
+    setTripleFlash({0:false,1:false});
+    _fc.current={ [_FH]: new Set(), [_FA]: new Set() };
+    setResult(null);
+    // Fix #28: clear resign confirm state on every reset so button doesn't stay red
+    setResignConfirm(false);
+    if(_resignTimer.current){ clearTimeout(_resignTimer.current); _resignTimer.current=null; }
+    sfx.reset();
+  }, [shellCount, gameMode, onlineRole]);
+
+  // Expose rematch handler — called when opponent clicks Play Again
+  // Dep is reset (not shellCount/gameMode/onlineRole individually) — reset is already stable via useCallback
+  useEffect(()=>{
+    _rematchRef.current = ()=>{
+      // Guest resets board; host also resets — both triggered by each other's rematch message
+      reset();
+    };
+    return ()=>{ _rematchRef.current=null; };
+  },[reset]);
+
+  useEffect(()=>{
+    // Never run AI if: PvP, online mode, matchmaking mode, OR if onlineRole is set (online game starting up)
+    if(gameMode==="pvp"||gameMode==="online"||gameMode==="matchmaking"||onlineRole!==null) return;
+    if(turn!==1||_br.current||over) return;
+    // Fix #18: vary AI think delay — Easy is slower/hesitant, Hard is sharp.
+    const aiDelay = aiDifficulty==="hard" ? 300 : 750 + Math.random()*400;
+    const t=setTimeout(()=>{
+      if(_br.current||onlineRole!==null) return;
+      const capAt2 = shellCount===6?3:shellCount===12?6:12;
+      const m = aiDifficulty==="hard" ? _aiHard(board, capAt2) : _aiB(board, capAt2);
+      if(m===-1){
+        setMsg("AI has no moves — your turn again!");
+        _finT(board,scores,1);
+        return;
+      }
+      const {steps,_cf}=_st(board,m,1,capAt2);
+      if(_cf!==null) _fc.current[_cf].add(1);
+      _rA(steps,board,scores,1,_rm);
+    },aiDelay);
+    return ()=>clearTimeout(t);
+  },[gameMode,onlineRole,turn,board,scores,over,shellCount,_rA,_finT,_rm,aiDifficulty]);
+
+  const fullReset = useCallback(()=>{
+    // Full reset: clears online state — used when changing mode via "Change Mode" button.
+    // Fix #23: shell count is intentionally NOT reset here so the player's preference
+    // carries over to the next session after changing mode. Shell count only resets
+    // when the player explicitly goes back to the shell-select screen and picks a new count.
+    _cleanupPeer(); _cleanupMatch();
+    setOnlineRole(null);
+    setGameMode("ai");
+    setOnlineStep("menu");
+    setOnlineStatus("");
+    setRoomCode("");
+    setJoinInput("");
+    setWaitingForConfig(false); // Fix #27: ensure board is unblocked after mode change
+    setResignConfirm(false);
+    if(_resignTimer.current){ clearTimeout(_resignTimer.current); _resignTimer.current=null; }
+    reset();
+  },[reset]);
+  const _hc=[0,1,2,3,4,5,6];
+  const _ac   =[7,8,9,10,11,12,13];
+  const _mb   = anim.cap!==null?"rgba(255,70,10,0.15)":over?"rgba(200,158,10,0.17)":anim.relay!==null?"rgba(50,200,100,0.1)":"rgba(20,8,0,0.52)";
+  const _mbd = anim.cap!==null?"rgba(255,100,40,0.5)":over?"rgba(200,158,10,0.5)":anim.relay!==null?"rgba(50,190,90,0.4)":"rgba(70,32,8,0.5)";
+  const _mc  = anim.cap!==null?"#ff9060":over?"#ffd060":anim.relay!==null?"#70ffaa":"#c89840";
+  return (
+    <div
+      role="application"
+      aria-label="Pallankuzhi board game"
+      style={{
+        height:"100vh",
+        overflow:"hidden",
+        background:"linear-gradient(162deg,#1a0c00 0%,#0a0300 55%,#040100 100%)",
+        display:"flex",flexDirection:"row",alignItems:"center",justifyContent:"center",
+        padding:"16px 8px",fontFamily:"Georgia,serif",userSelect:"none",gap:0,
+      }}>
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        style={{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0,0,0,0)",whiteSpace:"nowrap"}}>
+        {_sra}
+      </div>
+      <a href="#game-board" style={{
+        position:"absolute",top:-40,left:8,padding:"6px 14px",
+        background:"#ffe050",color:"#1a0a00",borderRadius:6,fontWeight:"bold",
+        fontSize:13,zIndex:999,textDecoration:"none",
+        transition:"top 0.1s",
+      }}
+      onFocus={e=>e.target.style.top="8px"}
+      onBlur={e=>e.target.style.top="-40px"}>
+        Skip to game board
+      </a>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+        @keyframes gentleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes shimmer{0%{opacity:0.7}50%{opacity:1}100%{opacity:0.7}}
+        @keyframes handSlide{0%{opacity:0;transform:translateX(-50%) translateY(-80%) scale(0.6)}70%{opacity:1;transform:translateX(-50%) translateY(-44%) scale(1.08)}100%{opacity:1;transform:translateX(-50%) translateY(-50%) scale(1)}}
+        @keyframes popIn{0%{opacity:0;transform:translate(-150%,-50%) rotate(90deg)}70%{transform:translate(-44%,-50%) rotate(90deg)}100%{opacity:1;transform:translate(-50%,-50%) rotate(90deg)}}
+        @keyframes popInPortrait{0%{opacity:0;transform:translate(-50%,-80%)}70%{transform:translate(-50%,-46%)}100%{opacity:1;transform:translate(-50%,-50%)}}
+        @keyframes tripleScoreFlash{0%,100%{box-shadow:0 2px 8px rgba(0,0,0,0.5)}50%{box-shadow:0 0 0 4px rgba(255,220,40,0.9),0 0 32px rgba(255,200,0,0.7)}}
+        @keyframes shellRain{0%{opacity:1;transform:translateY(-40px) rotate(0deg)}100%{opacity:0;transform:translateY(110vh) rotate(720deg)}}
+        @keyframes landBurst{0%{r:4;opacity:0.8}100%{r:14;opacity:0}}
+        @keyframes trailFade{0%{opacity:0.5}100%{opacity:0}}
+        @keyframes introFadeIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+        @keyframes introPulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+        *{box-sizing:border-box;}
+        :focus-visible{outline:3px solid #ffe050 !important;outline-offset:3px;}
+        .pit-focus-ring{opacity:0;}
+        [tabindex="0"]:focus-visible .pit-focus-ring{opacity:1 !important;}
+        @media (prefers-reduced-motion: reduce){
+          *{animation-duration:0.001ms !important;transition-duration:0.001ms !important;}
+        }
+        @media (prefers-contrast: more){
+          [role="button"]{outline:2px solid #fff;}
+        }
+      `}</style>
+      {introStep === 0 && (
+        <div onClick={()=>sfx.startIntro()} style={{
+          position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:1000,
+          background:"linear-gradient(162deg,#1a0c00 0%,#0a0300 55%,#040100 100%)",
+          overflowY:"auto",overflowX:"hidden",
+        }}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:50,overflow:"hidden",pointerEvents:"none",zIndex:2}}><_KBH/></div>
+          <div style={{position:"absolute",bottom:0,left:0,right:0,height:50,overflow:"hidden",pointerEvents:"none",zIndex:2}}><_KBH/></div>
+          <div style={{
+            position:"absolute",width:300,height:300,borderRadius:"50%",
+            top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+            background:"radial-gradient(ellipse,rgba(180,100,8,0.2),transparent 70%)",
+            filter:"blur(44px)",pointerEvents:"none",zIndex:1,
+          }}/>
+          <div style={{
+            position:"absolute",
+            top:"50px",left:0,right:0,bottom:"50px",
+            display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"center",
+            padding:"8px 24px",boxSizing:"border-box",
+            gap:16,zIndex:2,
+          }}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+              <span style={{
+                fontFamily:"'Noto Sans Tamil',sans-serif",fontSize:38,fontWeight:700,letterSpacing:1,
+                background:"linear-gradient(135deg,#f6e070 0%,#c87c10 35%,#f0b830 60%,#9e5e10 100%)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
+                filter:"drop-shadow(0 4px 24px rgba(200,130,10,0.5))",
+                lineHeight:1.4,textAlign:"center",display:"block",
+              }}>பல்லாங்குழி</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,width:"min(240px,65vw)"}}>
+                <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(180,120,30,0.6))"}}/>
+                <span style={{fontSize:11,color:"rgba(200,140,30,0.8)"}}>◆</span>
+                <div style={{flex:1,height:1,background:"linear-gradient(90deg,rgba(180,120,30,0.6),transparent)"}}/>
+              </div>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:15,letterSpacing:8,color:"#8a5820",textTransform:"uppercase"}}>Pallankuzhi</span>
+            </div>
+            <div style={{fontSize:48,lineHeight:1,animation:"introPulse 2.5s ease-in-out infinite"}}>🐚</div>
+            <p style={{
+              fontFamily:"Crimson Text,serif",fontSize:15,color:"#7a4e18",
+              lineHeight:1.5,margin:0,textAlign:"center",maxWidth:260,
+              fontStyle:"italic",letterSpacing:0.2,
+            }}>An ancient Tamil game of sowing, strategy, and capture.</p>
+            <button
+              onClick={(e)=>{e.stopPropagation();sfx.pageNext();setIntroStep(1);}}
+              style={{
+                padding:"12px 40px",borderRadius:30,
+                fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:3,textTransform:"uppercase",
+                color:"#c8a040",cursor:"pointer",
+                background:"linear-gradient(135deg,rgba(80,34,4,0.95),rgba(28,10,0,0.98))",
+                border:"1.5px solid rgba(160,90,10,0.7)",
+                boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",
+                transition:"all 0.25s",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";}}
+            >How to Play →</button>
+            <button
+              onClick={(e)=>{e.stopPropagation();sfx.skipPlay();setIntroStep(2);}}
+              style={{
+                background:"none",border:"none",cursor:"pointer",
+                fontFamily:"Crimson Text,serif",fontSize:13,color:"#4a2e0a",letterSpacing:1,
+                textDecoration:"underline",textUnderlineOffset:3,marginTop:-8,
+              }}
+              onMouseEnter={e=>e.currentTarget.style.color="#8a5820"}
+              onMouseLeave={e=>e.currentTarget.style.color="#4a2e0a"}
+            >Skip — just play</button>
+          </div>
+        </div>
+      )}
+      {introStep === 1 && (
+        <div style={{
+          position:"fixed",inset:0,zIndex:1000,
+          background:"linear-gradient(162deg,#1a0c00 0%,#0a0300 55%,#040100 100%)",
+          animation:"introFadeIn 0.5s ease both",
+          display:"flex",flexDirection:"column",
+          overflowY:"auto",overflowX:"hidden",
+        }}>
+          <div style={{flexShrink:0,pointerEvents:"none"}}>
+            <_KBH/>
+          </div>
+          <div style={{
+            flex:1,overflowY:"auto",
+            display:"flex",flexDirection:"column",alignItems:"center",
+            justifyContent:"flex-start",
+            padding:"8px 20px 24px",
+            gap:0,
+            position:"relative",
+          }}>
+            <div style={{
+              position:"absolute",top:"30%",left:"50%",transform:"translate(-50%,-50%)",
+              width:400,height:400,borderRadius:"50%",zIndex:0,
+              background:"radial-gradient(ellipse,rgba(160,90,8,0.16),transparent 70%)",
+              filter:"blur(44px)",pointerEvents:"none",
+            }}/>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,marginBottom:10,animation:"introFadeIn 0.6s 0.1s both",position:"relative",zIndex:1}}>
+              <span style={{
+                fontFamily:"Cinzel,serif",fontSize:22,fontWeight:700,letterSpacing:6,
+                background:"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
+              }}>How to Play</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,width:260}}>
+                <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(180,120,30,0.5))"}}/>
+                <span style={{fontSize:12,color:"rgba(200,140,30,0.7)"}}>◆</span>
+                <div style={{flex:1,height:1,background:"linear-gradient(90deg,rgba(180,120,30,0.5),transparent)"}}/>
+              </div>
+            </div>
+            <div style={{
+              width:"100%",maxWidth:400,display:"flex",flexDirection:"column",gap:5,
+              animation:"introFadeIn 0.6s 0.2s both",position:"relative",zIndex:1,
+            }}>
+              {[
+                {i:"🖱️", head:"Pick a pit",        body:"Tap any pit in your column that has shells. Pick up all shells from that pit to begin your turn."},
+                {i:"🐚", head:"Sow anti-clockwise", body:"Drop shells one-by-one into consecutive pits going in an anti-clockwise ↺ direction around the board."},
+                {i:"⚡", head:"Relay",               body:"Last shell lands in a non-empty pit? Pick up all those shells and keep sowing in the same direction — your turn continues!"},
+                {i:"✨", head:"Capture",              body:"Last shell lands next to an empty pit? Capture all shells in the next pit after that empty one."},
+                {i:"🚫", head:"Empty pit — no capture", body:"If the next pit after the empty one is also empty, no capture happens and your turn simply ends."},
+                {i:"⛔", head:"Forbidden pits",      body:"The centre pit on each side cannot be picked. Landing just before it ends your turn. Shells accumulate in forbidden pits all game — at the end they’re split between players who entered them."},
+                {i:"🎯", head:"Reward capture",        body:"When a pit reaches half the starting shells (3 for 6-shell, 6 for 12-shell, 12 for 24-shell), it is instantly claimed by the pit's owner. Watch for the golden burst!"},
+                {i:"🏆", head:"End of game",          body:"When one player cannot fill their cups, the game ends. The player with the most shells wins!"}].map(({i,head,body},k)=>(
+                <div key={k} style={{
+                  display:"flex",gap:10,alignItems:"flex-start",
+                  background:"rgba(10,4,0,0.5)",
+                  border:"1px solid rgba(100,54,8,0.35)",
+                  borderRadius:10,padding:"7px 12px",
+                }}>
+                  <span style={{fontSize:16,flexShrink:0,marginTop:1}}>{i}</span>
+                  <span style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#8a6030",lineHeight:1.4}}>
+                    <strong style={{color:"#c8a040",fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:1,display:"block",marginBottom:1}}>{head}</strong>
+                    {body}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:16,marginTop:12,animation:"introFadeIn 0.6s 0.35s both",position:"relative",zIndex:1}}>
+              <button
+                onClick={()=>{sfx.pageBack();setIntroStep(0);}}
+                style={{
+                  padding:"12px 28px",borderRadius:30,
+                  fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:3,textTransform:"uppercase",
+                  color:"#6a4010",cursor:"pointer",
+                  background:"rgba(10,4,0,0.6)",
+                  border:"1.5px solid rgba(80,40,8,0.5)",
+                  transition:"all 0.22s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.6)";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#6a4010";e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+              >← Back</button>
+              <button
+                onClick={()=>{sfx.pageNext();setIntroStep(2);}}
+                style={{
+                  padding:"16px 52px",borderRadius:30,
+                  fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:4,textTransform:"uppercase",
+                  color:"#c8a040",cursor:"pointer",
+                  background:"linear-gradient(135deg,rgba(80,34,4,0.95),rgba(28,10,0,0.98))",
+                  border:"1.5px solid rgba(160,90,10,0.7)",
+                  boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",
+                  transition:"all 0.25s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.8),0 0 24px rgba(200,130,10,0.3)";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)";}}
+              >▶ Play</button>
+            </div>
+          </div>
+          <div style={{flexShrink:0,pointerEvents:"none"}}>
+            <_KBH/>
+          </div>
+        </div>
+      )}
+      {introStep === 2 && (
+        <div style={{
+          position:"fixed",inset:0,zIndex:1000,
+          background:"linear-gradient(162deg,#1a0c00 0%,#0a0300 55%,#040100 100%)",
+          animation:"introFadeIn 0.5s ease both",
+          display:"flex",flexDirection:"column",
+          overflowY:"auto",overflowX:"hidden",
+        }}>
+          <div style={{flexShrink:0,pointerEvents:"none"}}><_KBH/></div>
+          <div style={{
+            flex:1,display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"flex-start",
+            padding:"16px 24px 32px",gap:20,position:"relative",
+          }}>
+            <div style={{
+              position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",
+              width:400,height:400,borderRadius:"50%",zIndex:0,
+              background:"radial-gradient(ellipse,rgba(160,90,8,0.18),transparent 70%)",
+              filter:"blur(44px)",pointerEvents:"none",
+            }}/>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,position:"relative",zIndex:1,animation:"introFadeIn 0.5s ease both"}}>
+              <span style={{
+                fontFamily:"Cinzel,serif",fontSize:22,fontWeight:700,letterSpacing:6,
+                background:"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
+              }}>Choose Mode</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,width:280}}>
+                <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(180,120,30,0.5))"}}/>
+                <span style={{fontSize:12,color:"rgba(200,140,30,0.7)"}}>◆</span>
+                <div style={{flex:1,height:1,background:"linear-gradient(90deg,rgba(180,120,30,0.5),transparent)"}}/>
+              </div>
+              <p style={{fontFamily:"Crimson Text,serif",fontSize:14,color:"#5a3810",fontStyle:"italic",margin:0,textAlign:"center"}}>How do you wish to play?</p>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:16,width:"100%",maxWidth:340,position:"relative",zIndex:1}}>
+              <button
+                onClick={()=>{sfx.modeSelect();setGameMode("ai");setMsg("Your turn — tap a pit in YOUR column (left)");setIntroStep(3);}}
+                style={{
+                  padding:"24px 28px",borderRadius:18,cursor:"pointer",
+                  background:"linear-gradient(135deg,rgba(60,28,4,0.98),rgba(18,8,0,1))",
+                  border:"1.5px solid rgba(160,90,10,0.65)",
+                  boxShadow:"0 8px 32px rgba(0,0,0,0.7),0 0 24px rgba(140,90,8,0.15)",
+                  display:"flex",alignItems:"center",gap:18,
+                  transition:"all 0.25s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(220,160,20,0.85)";e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.8),0 0 32px rgba(200,130,10,0.25)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(160,90,10,0.65)";e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.7),0 0 24px rgba(140,90,8,0.15)";}}
+              >
+                <span style={{fontSize:44,lineHeight:1,filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.8))"}}>🤖</span>
+                <div style={{textAlign:"left",flex:1}}>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:3,color:"#c8a040",marginBottom:5}}>PLAYER vs AI</div>
+                  <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#6a4018",fontStyle:"italic",lineHeight:1.4}}>Challenge the machine in an ancient battle of strategy</div>
+                </div>
+                <div
+                  onClick={e=>{e.stopPropagation();sfx.btnClick();setAiDifficulty(d=>d==="easy"?"hard":"easy");}}
+                  style={{
+                    padding:"6px 12px",borderRadius:20,cursor:"pointer",flexShrink:0,
+                    background:aiDifficulty==="hard"?"rgba(200,40,40,0.25)":"rgba(40,160,80,0.2)",
+                    border:aiDifficulty==="hard"?"1px solid rgba(220,80,60,0.6)":"1px solid rgba(60,200,100,0.5)",
+                    fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,
+                    color:aiDifficulty==="hard"?"#ff8060":"#60e090",
+                    transition:"all 0.2s",
+                  }}
+                  title="Toggle AI difficulty"
+                >{aiDifficulty==="hard"?"HARD":"EASY"}</div>
+              </button>
+              <button
+                onClick={()=>{sfx.modeSelect();setGameMode("pvp");setMsg("Player 1 — pick a pit in your column (left)");setIntroStep(3);}}
+                style={{
+                  padding:"24px 28px",borderRadius:18,cursor:"pointer",
+                  background:"linear-gradient(135deg,rgba(4,20,58,0.98),rgba(0,8,20,1))",
+                  border:"1.5px solid rgba(40,90,180,0.55)",
+                  boxShadow:"0 8px 32px rgba(0,0,0,0.7),0 0 24px rgba(40,80,180,0.12)",
+                  display:"flex",alignItems:"center",gap:18,
+                  transition:"all 0.25s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(80,150,255,0.75)";e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.8),0 0 32px rgba(60,120,240,0.25)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(40,90,180,0.55)";e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.7),0 0 24px rgba(40,80,180,0.12)";}}
+              >
+                <span style={{fontSize:44,lineHeight:1,filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.8))"}}>🎮</span>
+                <div style={{textAlign:"left"}}>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:3,color:"#80b0ff",marginBottom:5}}>PLAYER 1 vs 2</div>
+                  <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#2a3858",fontStyle:"italic",lineHeight:1.4}}>Two players share one board — pass and play</div>
+                </div>
+              </button>
+              <button
+                onClick={()=>{sfx.modeSelect();setOnlineStep("friend_menu");setJoinInput("");setOnlineStatus("");setRoomCode("");setIntroStep("online");}}
+                style={{padding:"24px 28px",borderRadius:18,cursor:"pointer",background:"linear-gradient(135deg,rgba(2,36,20,0.98),rgba(0,12,6,1))",border:"1.5px solid rgba(20,160,80,0.55)",boxShadow:"0 8px 32px rgba(0,0,0,0.7)",display:"flex",alignItems:"center",gap:18,transition:"all 0.25s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(40,220,120,0.8)";e.currentTarget.style.transform="translateY(-3px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(20,160,80,0.55)";e.currentTarget.style.transform="none";}}
+              >
+                <span style={{fontSize:44,lineHeight:1,filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.8))"}}>🤝</span>
+                <div style={{textAlign:"left"}}>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:3,color:"#40e090",marginBottom:5}}>PLAY WITH FRIEND</div>
+                  <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#1a4030",fontStyle:"italic",lineHeight:1.4}}>Invite a friend online with a room code</div>
+                </div>
+              </button>
+              <button
+                onClick={()=>{sfx.modeSelect();setOnlineStep("matchmaking_sc");setOnlineStatus("");setIntroStep("online");}}
+                style={{padding:"24px 28px",borderRadius:18,cursor:"pointer",background:"linear-gradient(135deg,rgba(36,4,50,0.98),rgba(14,0,20,1))",border:"1.5px solid rgba(160,40,220,0.55)",boxShadow:"0 8px 32px rgba(0,0,0,0.7)",display:"flex",alignItems:"center",gap:18,transition:"all 0.25s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,80,255,0.8)";e.currentTarget.style.transform="translateY(-3px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(160,40,220,0.55)";e.currentTarget.style.transform="none";}}
+              >
+                <span style={{fontSize:44,lineHeight:1,filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.8))"}}>🌍</span>
+                <div style={{textAlign:"left"}}>
+                  <div style={{fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:3,color:"#d060ff",marginBottom:5}}>PLAY WITH STRANGERS</div>
+                  <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#3a1a50",fontStyle:"italic",lineHeight:1.4}}>Match with a random player worldwide instantly</div>
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={()=>{sfx.pageBack();setIntroStep(1);}}
+              style={{
+                position:"relative",zIndex:1,
+                padding:"11px 30px",borderRadius:30,
+                fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",
+                color:"#4a2e08",cursor:"pointer",
+                background:"transparent",border:"1.5px solid rgba(80,40,8,0.45)",
+                transition:"all 0.22s",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.6)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#4a2e08";e.currentTarget.style.borderColor="rgba(80,40,8,0.45)";}}
+            >← Back</button>
+          </div>
+          <div style={{flexShrink:0,pointerEvents:"none"}}><_KBH/></div>
+        </div>
+      )}
+
+      {/* ── ONLINE LOBBY (friend + matchmaking) ── */}
+      {introStep === "online" && (
+        <div style={{position:"fixed",inset:0,zIndex:1000,background:"linear-gradient(162deg,#000e06 0%,#000804 55%,#000200 100%)",animation:"introFadeIn 0.5s ease both",display:"flex",flexDirection:"column"}}>
+          <div style={{flexShrink:0,pointerEvents:"none"}}><_KBH/></div>
+          <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 24px",gap:18,position:"relative"}}>
+            <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",width:400,height:400,borderRadius:"50%",zIndex:0,background:"radial-gradient(ellipse,rgba(120,40,200,0.12),transparent 70%)",filter:"blur(44px)",pointerEvents:"none"}}/>
+
+            {/* Title */}
+            {onlineStep!=="searching" && onlineStep!=="waiting" && (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,position:"relative",zIndex:1}}>
+                <span style={{fontSize:32}}>{onlineStep==="matchmaking_sc"||onlineStep==="friend_menu"||onlineStep==="create"||onlineStep==="join"?"🌐":"🔌"}</span>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:20,fontWeight:700,letterSpacing:5,background:"linear-gradient(135deg,#d060ff,#8020c0,#c040f0)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>
+                  {onlineStep==="matchmaking_sc"?"Choose Shells":onlineStep==="friend_menu"?"Play with Friend":onlineStep==="create"?"Create Room":onlineStep==="join"?"Join Room":"Online Play"}
+                </span>
+              </div>
+            )}
+
+            {/* Status bar */}
+            {onlineStatus!=="" && (
+              <div style={{position:"relative",zIndex:1,fontFamily:"Crimson Text,serif",fontSize:14,color:"#c080ff",textAlign:"center",padding:"8px 16px",background:"rgba(80,20,120,0.3)",border:"1px solid rgba(140,40,200,0.35)",borderRadius:10,maxWidth:300}}>
+                {onlineStatus}
+              </div>
+            )}
+
+            {/* MATCHMAKING — pick shell count */}
+            {onlineStep==="matchmaking_sc" && (
+              <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320,position:"relative",zIndex:1}}>
+                {[{count:6,label:"6 Shells",emoji:"🐚",col:"#c8a040"},{count:12,label:"12 Shells",emoji:"👑",col:"#c060e0"},{count:24,label:"24 Shells",emoji:"🌊",col:"#80b0ff"}].map(({count,label,emoji,col})=>(
+                  <button key={count}
+                    disabled={onlineStep==="searching"}
+                    onClick={()=>{if(onlineStep==="searching")return;sfx.shellSelect();setShellCount(count);setBoard(_ib(count));startMatchmaking(count);}}
+                    style={{padding:"16px 22px",borderRadius:14,cursor:"pointer",background:"linear-gradient(135deg,rgba(36,4,50,0.98),rgba(14,0,20,1))",border:"1.5px solid rgba(160,40,220,0.5)",display:"flex",alignItems:"center",gap:14,transition:"all 0.2s",boxShadow:"0 4px 20px rgba(0,0,0,0.6)"}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,80,255,0.8)";e.currentTarget.style.transform="translateY(-2px)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(160,40,220,0.5)";e.currentTarget.style.transform="none";}}
+                  >
+                    <span style={{fontSize:28}}>{emoji}</span>
+                    <div>
+                      <div style={{fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:2,color:col}}>{label} / Pit</div>
+                      <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#5a2080",fontStyle:"italic"}}>Match with a random player</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* SEARCHING animation */}
+            {onlineStep==="searching" && (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:20,position:"relative",zIndex:1}}>
+                <div style={{fontSize:64,animation:"introPulse 1.5s ease-in-out infinite"}}>🌍</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:18,letterSpacing:4,color:"#d060ff",textAlign:"center"}}>FINDING OPPONENT</div>
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:14,color:"#6a2090",fontStyle:"italic",textAlign:"center",maxWidth:260}}>{onlineStatus}</div>
+                {matchPlayers>0 && <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#8040a0",fontStyle:"italic"}}>🌐 {matchPlayers} players online</div>}
+                <div style={{display:"flex",gap:10,marginTop:4}}>
+                  {[0,1,2,3].map(i=>(
+                    <div key={i} style={{width:10,height:10,borderRadius:"50%",background:"#d060ff",opacity:0.8,animation:`pulse ${0.8+i*0.2}s ease-in-out infinite`}}/>
+                  ))}
+                </div>
+                <button
+                  onClick={()=>{_cleanupPeer();_cleanupMatch();setOnlineStep("matchmaking_sc");setOnlineStatus("");}}
+                  style={{marginTop:8,padding:"10px 28px",borderRadius:30,cursor:"pointer",fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:3,color:"#6a2080",background:"transparent",border:"1.5px solid rgba(100,30,140,0.4)",transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.color="#c060f0";e.currentTarget.style.borderColor="rgba(180,60,220,0.7)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.color="#6a2080";e.currentTarget.style.borderColor="rgba(100,30,140,0.4)";}}
+                >Cancel</button>
+              </div>
+            )}
+
+            {/* FRIEND MENU */}
+            {onlineStep==="friend_menu" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14,width:"100%",maxWidth:320,position:"relative",zIndex:1}}>
+                <button
+                  onClick={()=>{sfx.pageNext();setOnlineStep("create");setOnlineStatus("");}}
+                  style={{padding:"20px 24px",borderRadius:16,cursor:"pointer",background:"linear-gradient(135deg,rgba(2,36,20,0.98),rgba(0,14,6,1))",border:"1.5px solid rgba(20,160,80,0.6)",display:"flex",alignItems:"center",gap:16,transition:"all 0.25s",boxShadow:"0 6px 28px rgba(0,0,0,0.7)"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(40,220,120,0.85)";e.currentTarget.style.transform="translateY(-2px)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(20,160,80,0.6)";e.currentTarget.style.transform="none";}}
+                >
+                  <span style={{fontSize:36}}>🏠</span>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{fontFamily:"Cinzel,serif",fontSize:15,letterSpacing:2,color:"#40e090",marginBottom:4}}>Create Room</div>
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#1a5030",fontStyle:"italic"}}>Generate a code and invite your friend</div>
+                  </div>
+                </button>
+                <button
+                  onClick={()=>{sfx.pageNext();setOnlineStep("join");setOnlineStatus("");}}
+                  style={{padding:"20px 24px",borderRadius:16,cursor:"pointer",background:"linear-gradient(135deg,rgba(2,20,36,0.98),rgba(0,6,14,1))",border:"1.5px solid rgba(20,100,180,0.6)",display:"flex",alignItems:"center",gap:16,transition:"all 0.25s",boxShadow:"0 6px 28px rgba(0,0,0,0.7)"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(60,160,255,0.85)";e.currentTarget.style.transform="translateY(-2px)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(20,100,180,0.6)";e.currentTarget.style.transform="none";}}
+                >
+                  <span style={{fontSize:36}}>🔗</span>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{fontFamily:"Cinzel,serif",fontSize:15,letterSpacing:2,color:"#60b0ff",marginBottom:4}}>Join Room</div>
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#1a3050",fontStyle:"italic"}}>Enter the code from your friend</div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* CREATE ROOM — pick shell count */}
+            {onlineStep==="create" && (
+              <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320,position:"relative",zIndex:1}}>
+                <p style={{fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:2,color:"#40e090",textAlign:"center",margin:0}}>CHOOSE SHELLS PER PIT</p>
+                {[{count:6,label:"6 Shells",emoji:"🐚",col:"#c8a040"},{count:12,label:"12 Shells",emoji:"👑",col:"#c060e0"},{count:24,label:"24 Shells",emoji:"🌊",col:"#80b0ff"}].map(({count,label,emoji,col})=>(
+                  <button key={count}
+                    onClick={()=>{sfx.shellSelect();setShellCount(count);setBoard(_ib(count));createRoom(count);}}
+                    style={{padding:"14px 20px",borderRadius:14,cursor:"pointer",background:"linear-gradient(135deg,rgba(2,36,20,0.98),rgba(0,12,6,1))",border:"1.5px solid rgba(20,160,80,0.5)",display:"flex",alignItems:"center",gap:14,transition:"all 0.2s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(40,220,120,0.8)";e.currentTarget.style.transform="translateY(-2px)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(20,160,80,0.5)";e.currentTarget.style.transform="none";}}
+                  >
+                    <span style={{fontSize:28}}>{emoji}</span>
+                    <span style={{fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:2,color:col}}>{label} / Pit</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* WAITING — show room code */}
+            {onlineStep==="waiting" && roomCode!=="" && (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,position:"relative",zIndex:1,width:"100%",maxWidth:320}}>
+                <div style={{fontSize:48,animation:"introPulse 2s ease-in-out infinite"}}>🏠</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:3,color:"#40e090",textAlign:"center"}}>SHARE THIS CODE</div>
+                <div
+                  onClick={()=>{
+                    navigator.clipboard&&navigator.clipboard.writeText(roomCode).then(()=>{
+                      setOnlineStatus("Code copied!");
+                      setTimeout(()=>setOnlineStatus(""),2000);
+                    });
+                  }}
+                  title="Tap to copy"
+                  style={{fontFamily:"Cinzel,serif",fontSize:52,fontWeight:700,letterSpacing:14,color:"#40ffaa",textShadow:"0 0 30px rgba(40,220,120,0.7)",background:"rgba(20,60,30,0.5)",padding:"16px 28px",borderRadius:16,border:"2px solid rgba(40,200,100,0.4)",cursor:"pointer",userSelect:"all",transition:"all 0.15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(30,80,45,0.7)";e.currentTarget.style.borderColor="rgba(60,240,140,0.7)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(20,60,30,0.5)";e.currentTarget.style.borderColor="rgba(40,200,100,0.4)";}}
+                >
+                  {roomCode}
+                </div>
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#1a5030",fontStyle:"italic",textAlign:"center"}}>Tap the code to copy · Share with your friend</div>
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#1a5030",fontStyle:"italic",textAlign:"center"}}>Waiting for your friend to join…</div>
+                <div style={{display:"flex",gap:8}}>
+                  {[0,1,2].map(i=>(
+                    <div key={i} style={{width:8,height:8,borderRadius:"50%",background:"#40e090",opacity:0.8,animation:`pulse ${1+i*0.3}s ease-in-out infinite`}}/>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* JOIN ROOM */}
+            {onlineStep==="join" && (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,position:"relative",zIndex:1,width:"100%",maxWidth:320}}>
+                <p style={{fontFamily:"Crimson Text,serif",fontSize:14,color:"#2a8050",fontStyle:"italic",margin:0,textAlign:"center"}}>Enter your friend's room code:</p>
+                <input
+                  value={joinInput}
+                  onChange={e=>setJoinInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4))}
+                  onKeyDown={e=>{if(e.key==="Enter"&&joinInput.length===4) joinRoom(joinInput,shellCount);}}
+                  placeholder="ABCD"
+                  maxLength={4}
+                  style={{fontFamily:"Cinzel,serif",fontSize:40,fontWeight:700,letterSpacing:12,textAlign:"center",width:"100%",padding:"14px 16px",background:"rgba(10,40,20,0.8)",color:"#40ffaa",border:"2px solid rgba(40,200,100,0.5)",borderRadius:14,outline:"none",caretColor:"#40ffaa",boxShadow:"inset 0 2px 12px rgba(0,0,0,0.6)"}}
+                />
+                <button
+                  onClick={()=>joinRoom(joinInput,shellCount)}
+                  disabled={joinInput.length!==4}
+                  style={{padding:"14px 40px",borderRadius:30,cursor:joinInput.length===4?"pointer":"not-allowed",fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:3,color:joinInput.length===4?"#40ffaa":"#1a5030",background:"linear-gradient(135deg,rgba(2,36,20,0.98),rgba(0,12,6,1))",border:`1.5px solid ${joinInput.length===4?"rgba(40,200,100,0.7)":"rgba(20,80,40,0.3)"}`,opacity:joinInput.length===4?1:0.5,transition:"all 0.2s"}}
+                >Join →</button>
+              </div>
+            )}
+
+            {/* ERROR */}
+            {onlineStep==="error" && (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,position:"relative",zIndex:1}}>
+                <span style={{fontSize:40}}>⚠️</span>
+                <p style={{fontFamily:"Crimson Text,serif",fontSize:15,color:"#e06040",textAlign:"center",maxWidth:280,margin:0}}>{onlineStatus}</p>
+                <button
+                  onClick={()=>{
+                    // Fix #29: return to the correct lobby based on game mode
+                    if(gameMode==="matchmaking") { setOnlineStep("matchmaking_sc"); }
+                    else { setOnlineStep("friend_menu"); }
+                    setOnlineStatus(""); setJoinInput(""); setRoomCode("");
+                  }}
+                  style={{padding:"12px 32px",borderRadius:30,cursor:"pointer",fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,color:"#40e090",background:"transparent",border:"1.5px solid rgba(40,160,80,0.5)",transition:"all 0.2s"}}
+                >Try Again</button>
+              </div>
+            )}
+
+          </div>
+
+          {/* Back button */}
+          <div style={{display:"flex",justifyContent:"center",paddingBottom:12,position:"relative",zIndex:1}}>
+            <button
+              onClick={()=>{
+                sfx.pageBack();
+                _cleanupPeer(); _cleanupMatch();
+                if(onlineStep==="searching") { setOnlineStep("matchmaking_sc"); setOnlineStatus(""); }
+                else if(onlineStep==="waiting") { setOnlineStep("friend_menu"); setOnlineStatus(""); setRoomCode(""); }
+                else if(onlineStep==="create"||onlineStep==="join"||onlineStep==="error") { setOnlineStep("friend_menu"); setOnlineStatus(""); setRoomCode(""); setJoinInput(""); }
+                else if(onlineStep==="friend_menu"||onlineStep==="matchmaking_sc") { setIntroStep(2); }
+              }}
+              style={{padding:"11px 30px",borderRadius:30,fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",color:"#2a1040",cursor:"pointer",background:"transparent",border:"1.5px solid rgba(80,20,120,0.4)",transition:"all 0.22s"}}
+              onMouseEnter={e=>{e.currentTarget.style.color="#d060ff";e.currentTarget.style.borderColor="rgba(180,60,220,0.7)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#2a1040";e.currentTarget.style.borderColor="rgba(80,20,120,0.4)";}}
+            >← Back</button>
+          </div>
+          <div style={{flexShrink:0,pointerEvents:"none"}}><_KBH/></div>
+        </div>
+      )}
+
+      {introStep === 3 && (
+        <div style={{
+          position:"fixed",inset:0,zIndex:1000,
+          background:"linear-gradient(162deg,#1a0c00 0%,#0a0300 55%,#040100 100%)",
+          animation:"introFadeIn 0.5s ease both",
+          display:"flex",flexDirection:"column",
+          overflowY:"auto",overflowX:"hidden",
+        }}>
+          <div style={{flexShrink:0,pointerEvents:"none"}}><_KBH/></div>
+          <div style={{
+            flex:1,display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"flex-start",
+            padding:"16px 24px 32px",gap:20,position:"relative",
+          }}>
+            <div style={{
+              position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",
+              width:400,height:400,borderRadius:"50%",zIndex:0,
+              background:"radial-gradient(ellipse,rgba(160,90,8,0.18),transparent 70%)",
+              filter:"blur(44px)",pointerEvents:"none",
+            }}/>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,position:"relative",zIndex:1,animation:"introFadeIn 0.5s ease both"}}>
+              <span style={{
+                fontFamily:"Cinzel,serif",fontSize:22,fontWeight:700,letterSpacing:6,
+                background:"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
+              }}>Shells Per Pit</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,width:280}}>                <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(180,120,30,0.5))"}}/>                <span style={{fontSize:12,color:"rgba(200,140,30,0.7)"}}>◆</span>                <div style={{flex:1,height:1,background:"linear-gradient(90deg,rgba(180,120,30,0.5),transparent)"}}/>              </div>
+              <p style={{fontFamily:"Crimson Text,serif",fontSize:14,color:"#5a3810",fontStyle:"italic",margin:0,textAlign:"center"}}>Choose how many shells start in each pit</p>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:340,position:"relative",zIndex:1}}>
+              {[
+                {count:6,  label:"6 Shells",  desc:"Classic rules — magic capture at 3 shells per pit", bg:"linear-gradient(135deg,rgba(60,28,4,0.98),rgba(18,8,0,1))",   border:"rgba(160,90,10,0.65)", hover:"rgba(220,160,20,0.85)", col:"#c8a040", emoji:"🐚"},
+                {count:12, label:"12 Shells", desc:"Grand game — magic capture at 6 shells per pit",   bg:"linear-gradient(135deg,rgba(50,8,60,0.98),rgba(18,2,24,1))",  border:"rgba(140,50,180,0.6)", hover:"rgba(180,80,220,0.85)", col:"#c060e0", emoji:"👑"},
+                {count:24, label:"24 Shells", desc:"Epic game — magic capture at 12 shells per pit",   bg:"linear-gradient(135deg,rgba(4,20,58,0.98),rgba(0,8,20,1))",   border:"rgba(40,90,180,0.55)", hover:"rgba(80,150,255,0.75)", col:"#80b0ff", emoji:"🌊"},
+              ].map(({count,label,desc,bg,border,hover,col,emoji})=>(
+                <button
+                  key={count}
+                  onClick={()=>{
+                    setShellCount(count);
+                    setBoard(_ib(count));
+                    const startMsg = gameMode==="pvp" ? "Player 1 — pick a pit in your column (left)" : "Your turn — tap a pit in YOUR column (left)";
+                    setMsg(startMsg);
+                    sfx.shellSelect(); setIntroStep(4);
+                  }}
+                  style={{
+                    padding:"18px 24px",borderRadius:16,cursor:"pointer",
+                    background:bg, border:`1.5px solid ${border}`,
+                    boxShadow:"0 6px 28px rgba(0,0,0,0.7)",
+                    display:"flex",alignItems:"center",gap:16,
+                    transition:"all 0.25s", width:"100%",
+                    outline:"none",
+                  }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=hover;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 10px 36px rgba(0,0,0,0.8),0 0 28px rgba(0,0,0,0.3)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.7)";}}
+                >
+                  <span style={{fontSize:36,lineHeight:1,filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.8))",flexShrink:0}}>{emoji}</span>
+                  <div style={{textAlign:"left",flex:1}}>
+                    <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
+                      <span style={{fontFamily:"Cinzel,serif",fontSize:15,letterSpacing:2,color:col}}>{label}</span>
+                      <span style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:1,color:col,opacity:0.6}}>/ PIT</span>
+                    </div>
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#5a4020",fontStyle:"italic",lineHeight:1.4}}>{desc}</div>
+                  </div>
+                  <div style={{
+                    width:32,height:32,borderRadius:"50%",
+                    background:`rgba(0,0,0,0.4)`,border:`1px solid ${border}`,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontFamily:"Cinzel,serif",fontSize:14,fontWeight:"bold",color:col,flexShrink:0,
+                  }}>{count}</div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={()=>{sfx.pageBack();setIntroStep(2);}}
+              style={{
+                position:"relative",zIndex:1,
+                padding:"11px 30px",borderRadius:30,
+                fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",
+                color:"#4a2e08",cursor:"pointer",
+                background:"transparent",border:"1.5px solid rgba(80,40,8,0.45)",
+                transition:"all 0.22s",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.6)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#4a2e08";e.currentTarget.style.borderColor="rgba(80,40,8,0.45)";}}
+            >← Back</button>
+          </div>
+          <div style={{flexShrink:0,pointerEvents:"none"}}><_KBH/></div>
+        </div>
+      )}
+            <div style={{display:"flex",flexDirection:isDesktop&&isLandscape?"row":isLandscape?"column":"row",alignItems:"center",justifyContent:isDesktop?"flex-start":"center",flex:1,height:"100%",overflow:"hidden",visibility:introStep===4?"visible":"hidden",pointerEvents:introStep===4?"auto":"none",padding:isDesktop?"0 40px":"0",gap:isDesktop?20:0}}>
+      <div style={{position:"relative",
+        animation:!isLandscape?"gentleFloat 7s ease-in-out infinite":"none",
+        animationPlayState:flySeeds.length>0?"paused":"running",
+        transform:isDesktop
+          ? `scale(${Math.min(1.2, (winH - 120) / 700 * pitScale)})`
+          : isTablet
+          ? `scale(${Math.min(1.0, Math.min((winH - 100) / 500, (winW - 80) / 800))})`
+          : `scale(${Math.min(1.0, (winH - 80) / 700, (winW - 80) / 420)})`,
+        transformOrigin:"center center",
+        transition:"transform 0.4s ease",
+      }}>
+        <div style={{position:"absolute",inset:-28,borderRadius:50,
+          background:"radial-gradient(ellipse,rgba(160,90,8,0.22),transparent 68%)",
+          filter:"blur(28px)",pointerEvents:"none"}}/>
+        <div style={{
+          position:"relative",
+          background:"linear-gradient(145deg,#8a3e0a 0%,#4e1e04 18%,#2e0e00 40%,#4a1c04 58%,#7e3608 76%,#3c1602 90%,#6a2e06 100%)",
+          borderRadius:22,
+          boxShadow:"0 40px 100px rgba(0,0,0,0.98),0 12px 36px rgba(80,30,0,0.6),inset 0 1px 0 rgba(200,140,60,0.3)",
+        }}>
+          <div style={{borderRadius:"22px 22px 0 0",overflow:"hidden"}}>
+            <_KBH/>
+          </div>
+          <div style={{display:"flex",alignItems:"stretch"}}>
+            <div style={{width:38,flexShrink:0,overflow:"hidden"}}>
+              <_KSV/>
+            </div>
+            <div style={{
+              flex:1,
+              background:"linear-gradient(160deg,#6e2e06 0%,#4a1a02 30%,#300e00 60%,#4e2004 100%)",
+              boxShadow:"inset 0 4px 20px rgba(0,0,0,0.85)",
+              position:"relative",
+              padding:isLandscape?"8px 12px 10px":"14px 12px 18px",
+              display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            }}>
+              <div style={{position:"absolute",inset:0,overflow:"hidden",
+                display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+                <_KCB/>
+              </div>
+              <div
+                id="game-board"
+                role="group"
+                aria-label="Game board"
+                style={{display:"flex",flexDirection:isLandscape?"column-reverse":"row",gap:isLandscape?16:32,justifyContent:"center",
+                  alignItems:"center",position:"relative",zIndex:2,width:"100%",height:"100%"}}>
+                {/* YOU pits — always at bottom in landscape, left in portrait */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  {/* Fix #21: column ownership label — lights up on your turn */}
+                  <div style={{
+                    fontFamily:"Cinzel,serif",fontSize:9,letterSpacing:3,textTransform:"uppercase",
+                    color:turn===0&&!over?"#ffe060":"#5a3010",
+                    background:turn===0&&!over?"rgba(255,210,40,0.1)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${turn===0&&!over?"rgba(255,210,40,0.35)":"rgba(90,48,16,0.25)"}`,
+                    borderRadius:10,padding:"2px 10px",whiteSpace:"nowrap",
+                    transition:"all 0.4s",userSelect:"none",
+                    display:isLandscape?"none":"block",
+                  }}>{gameMode==="pvp"?"PLAYER 1":"YOUR SIDE"}</div>
+                  <div
+                    role="group"
+                    aria-label="Your pits"
+                    style={{display:"flex",flexDirection:isLandscape?"row":"column",gap:10,alignItems:"center",
+                      padding:"6px",borderRadius:16,
+                      background:turn===0&&!over
+                        ? "linear-gradient(180deg,rgba(200,140,10,0.07),rgba(180,110,8,0.04),rgba(200,140,10,0.07))"
+                        : "transparent",
+                      border:turn===0&&!over?"2px solid rgba(220,170,30,0.35)":"2px solid transparent",
+                      transition:"all 0.5s"}}>
+                    {_hc.map((ci,idx)=>{
+                      const can=!busy&&!over&&turn===0&&ci!==_FH&&ci!==_FA&&board[ci]>0;
+                      const pitLabel = ci===_FH ? "Your forbidden pit" : `Your pit ${idx+1}`;
+                      return (
+                        <div key={ci} ref={el=>pitRefs.current[ci]=el} style={{position:"relative"}}>
+                          <Pit seeds={board[ci]} canClick={can}
+                            pitIndex={ci} label={pitLabel}
+                            isLit={anim.lit===ci} isCaptured={anim.cap===ci} isRelay={anim.relay===ci}
+                            isForbidden={ci===_FH} isHovered={hover===ci}
+                            isLandscape={isLandscape}
+                            onHover={()=>setHover(ci)} onLeave={()=>setHover(null)}
+                            onClick={()=>_hC(ci)}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{
+                    fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:3,textTransform:"uppercase",
+                    color:turn===0&&!over?"#c8860a":"#3a1c04",
+                    animation:turn===0&&!over&&!busy?"pulse 1.2s infinite":"none",
+                    whiteSpace:"nowrap",userSelect:"none",textAlign:"center",
+                  }}>{gameMode==="pvp"?"🎮 P1":"🎮 YOU"}</div>
+                </div>
+                {/* AI pits — always at top in landscape, right in portrait */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  {/* Fix #21: opponent column label */}
+                  <div style={{
+                    fontFamily:"Cinzel,serif",fontSize:9,letterSpacing:3,textTransform:"uppercase",
+                    color:turn===1&&!over?"#ff9060":"#5a3010",
+                    background:turn===1&&!over?"rgba(255,100,40,0.1)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${turn===1&&!over?"rgba(255,100,40,0.35)":"rgba(90,48,16,0.25)"}`,
+                    borderRadius:10,padding:"2px 10px",whiteSpace:"nowrap",
+                    transition:"all 0.4s",userSelect:"none",
+                    display:isLandscape?"none":"block",
+                  }}>{gameMode==="pvp"?"PLAYER 2":(gameMode==="online"||gameMode==="matchmaking")?"OPPONENT":"AI SIDE"}</div>
+                  <div
+                    role="group"
+                    aria-label={(gameMode==="online"||gameMode==="matchmaking")?"Opponent's pits":gameMode==="pvp"?"Player 2 pits":"AI pits"}
+                    style={{display:"flex",flexDirection:isLandscape?"row":"column",gap:10,alignItems:"center",
+                      padding:"6px",borderRadius:16,
+                      background:turn===1&&!over?"linear-gradient(180deg,rgba(200,140,10,0.07),rgba(180,110,8,0.04),rgba(200,140,10,0.07))":"transparent",
+                      border:turn===1&&!over?"2px solid rgba(220,170,30,0.35)":"2px solid transparent",
+                      transition:"all 0.5s"}}>
+                    {_ac.map((ci,idx)=>{
+                      const _isOnline = gameMode==="online"||gameMode==="matchmaking";
+                      const pitLabel = ci===_FA?(_isOnline?"Opponent forbidden pit":gameMode==="pvp"?"P2 forbidden pit":"AI forbidden pit"):(_isOnline?`Opponent pit ${idx+1}`:gameMode==="pvp"?`P2 pit ${idx+1}`:`AI pit ${idx+1}`);
+                      const canP2 = gameMode==="pvp"&&!busy&&!over&&turn===1&&ci!==_FA&&ci!==_FH&&board[ci]>0&&ci>=7;
+                      return (
+                        <div key={ci} ref={el=>pitRefs.current[ci]=el} style={{position:"relative"}}>
+                          <Pit seeds={board[ci]} canClick={canP2}
+                            pitIndex={ci} label={pitLabel}
+                            isLit={anim.lit===ci} isCaptured={anim.cap===ci} isRelay={anim.relay===ci}
+                            isForbidden={ci===_FA}
+                            isHovered={hover===ci}
+                            isLandscape={isLandscape}
+                            onHover={()=>canP2&&setHover(ci)} onLeave={()=>setHover(null)}
+                            onClick={()=>_hC(ci,1)}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{
+                    fontFamily:"Cinzel,serif",fontSize:11,letterSpacing:3,textTransform:"uppercase",
+                    color:turn===1&&!over?"#a06820":"#3a1c04",
+                    animation:turn===1&&!over?"pulse 1.2s infinite":"none",
+                    whiteSpace:"nowrap",userSelect:"none",textAlign:"center",
+                  }}>{gameMode==="pvp"?"🎮 P2":(gameMode==="online"||gameMode==="matchmaking")?"🌍 OPP":"🤖 AI"}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8,justifyContent:"center",
+                marginTop:10,position:"relative",zIndex:2}}>
+                <div style={{width:90,textAlign:"center",fontSize:12,letterSpacing:2,
+                  fontFamily:"Cinzel,serif",color:"#6a3e14",minHeight:16}}>
+                  {turn===0&&!over&&busy?"· SOWING":""}</div>
+                <div style={{width:16}}/>
+                <div style={{width:90,textAlign:"center",fontSize:12,letterSpacing:2,
+                  fontFamily:"Cinzel,serif",color:"#6a3e14",minHeight:16}}>
+                  {turn===1&&!over&&busy?(gameMode==="pvp"?"· SOWING":"· PLAYING"):""}</div>
+              </div>
+            </div>{}
+            <div style={{width:38,flexShrink:0,overflow:"hidden"}}>
+              <_KSV/>
+            </div>
+          </div>{}
+          <div style={{borderRadius:"0 0 22px 22px",overflow:"hidden"}}>
+            <_KBH/>
+          </div>
+        </div>{}
+      </div>{}
+      </div>{}
+      <div style={{
+        display:"flex",
+        flexDirection: isDesktop && isLandscape ? "column" : isLandscape ? "row" : "column",
+        alignItems:"center",
+        gap: isDesktop ? 12 : isLandscape ? 10 : 8,
+        marginLeft: isDesktop && isLandscape ? 10 : isLandscape ? 0 : 6,
+        marginTop: isDesktop ? 0 : isLandscape ? 6 : 0,
+        alignSelf:"stretch",
+        justifyContent:"center",
+        paddingTop: isDesktop ? 12 : isLandscape ? 6 : 8,
+        paddingBottom: isDesktop ? 12 : isLandscape ? 6 : 8,
+        paddingLeft: isDesktop && isLandscape ? 6 : isLandscape ? 8 : 0,
+        paddingRight: isDesktop && isLandscape ? 6 : isLandscape ? 8 : 0,
+        width: isDesktop && isLandscape ? 80 : isLandscape ? "100%" : 68,
+        height: isDesktop ? "auto" : isLandscape ? 64 : "auto",
+        flexShrink:0,
+        visibility:introStep===4?"visible":"hidden",
+        pointerEvents:introStep===4?"auto":"none",
+      }}>
+        {/* Tamil title — always visible */}
+        <div style={{marginBottom:4}}>
+          <span style={{
+            fontFamily:"Cinzel,serif",fontSize:11,fontWeight:700,
+            writingMode:isLandscape?"horizontal-tb":"vertical-lr",textOrientation:"mixed",
+            transform:"rotate(0deg)",display:"inline-block",
+            background:"linear-gradient(180deg,#f6e070 0%,#c87c10 45%,#f0b830 100%)",
+            WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
+            filter:"drop-shadow(0 2px 10px rgba(200,130,10,0.6))",
+            lineHeight:1.4,whiteSpace:"nowrap",
+          }}>பல்லாங்குழி</span>
+        </div>
+        {/* Status message box */}
+        <div style={{
+          width:isDesktop&&isLandscape?68:isLandscape?120:60,
+          minWidth:isDesktop&&isLandscape?68:isLandscape?120:60,
+          borderRadius:14,
+          padding:isDesktop&&isLandscape?"10px 8px":isLandscape?"6px 10px":"10px 8px",
+          background:_mb,border:`1px solid ${_mbd}`,
+          transition:"all 0.35s",
+          flex:1,
+          maxHeight:isDesktop&&isLandscape?200:isLandscape?52:180,
+          maxWidth:isDesktop&&isLandscape?"none":isLandscape?200:"none",
+          boxShadow:anim.cap!==null?"0 0 12px rgba(255,80,20,0.3)":over?"0 0 12px rgba(200,158,10,0.2)":"none",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          overflow:"hidden",
+        }}>
+          <span style={{
+            fontFamily:"Crimson Text,serif",fontSize:11,color:_mc,
+            letterSpacing:0.3,transition:"color 0.3s",
+            writingMode:isLandscape?"horizontal-tb":"vertical-lr",
+            textOrientation:"mixed",
+            transform:"rotate(0deg)",
+            lineHeight:1.35,textAlign:"center",display:"inline-block",
+          }}>{msg}</span>
+        </div>
+        {(!isLandscape||isDesktop)&&<div style={{width:isDesktop?40:1,height:isDesktop?1:10,background:"linear-gradient(180deg,transparent,rgba(180,120,30,0.4),transparent)",flexShrink:0}}/>}
+        {/* AI score */}
+        <div ref={el=>scoreRefs.current[1]=el} style={{
+          width:isDesktop?70:isLandscape?56:60,borderRadius:12,padding:isDesktop?"12px 8px":isLandscape?"6px 8px":"10px 6px",
+          background:"rgba(40,20,4,0.85)",border:`1.5px solid ${turn===1&&!over?"#c8a040":"rgba(80,40,8,0.6)"}`,
+          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,
+          boxShadow:tripleFlash[1]?"0 0 0 4px rgba(255,220,40,0.9),0 0 32px rgba(255,200,0,0.7)":turn===1&&!over?"0 0 14px rgba(200,140,10,0.35),0 2px 8px rgba(0,0,0,0.5)":"0 2px 8px rgba(0,0,0,0.5)",
+          animation:tripleFlash[1]?"tripleScoreFlash 0.6s ease":"none",
+          transition:"all 0.35s",flexShrink:0,
+        }}>
+          <span style={{
+            fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:1,
+            color:tripleFlash[1]?"#ffe040":turn===1&&!over?"#c8a040":"#5a3a10",
+            writingMode:isLandscape?"horizontal-tb":"vertical-lr",transform:"rotate(0deg)",
+            display:"inline-block",whiteSpace:"nowrap",
+            animation:tripleFlash[1]?"pulse 0.3s ease":turn===1&&!over?"pulse 1.2s infinite":"none",
+          }}>{gameMode==="pvp"?"P2":(gameMode==="online"||gameMode==="matchmaking")?"OPP":"AI"}: {scores[1]}</span>
+        </div>
+        {/* Reset button — hidden mid-game in online/matchmaking to prevent desync */}
+        {(gameMode!=="online"&&gameMode!=="matchmaking")||(over) ? (
+        <div
+          onClick={()=>{sfx.btnClick();if((gameMode==="online"||gameMode==="matchmaking")&&over){sendRematch();}reset();}}
+          style={{
+            width:44,height:44,borderRadius:"50%",flexShrink:0,
+            background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
+            transition:"all 0.2s",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+        >
+          <span style={{color:"#c8a040",fontSize:20}}>↺</span>
+        </div>
+        ) : null}
+        {/* Orientation toggle button */}
+        <div
+          onClick={()=>{sfx.btnClick();setOrient(o=>{
+            // Fix #36: correct 3-state cycle: auto → landscape → portrait → auto
+            // regardless of current autoOrient, so both locks are always reachable.
+            if(o===null) return "landscape";
+            if(o==="landscape") return "portrait";
+            return null; // portrait → back to auto
+          });}}
+          style={{
+            width:44,height:44,borderRadius:"50%",flexShrink:0,
+            background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
+            transition:"all 0.2s",
+          }}
+          title={orient===null?"Orientation: Auto":isLandscape?"Orientation: Landscape":"Orientation: Portrait"}
+          aria-label={`Orientation: ${orient===null?"Auto":isLandscape?"Landscape":"Portrait"} — tap to cycle`}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+        >
+          {/* Fix #12: show current mode label below the icon so 3-state cycle is discoverable */}
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+            <span style={{color:"#c8a040",fontSize:16,lineHeight:1}}>{orient===null?"⊞":isLandscape?"⤡":"⤢"}</span>
+            <span style={{color:"#7a5020",fontSize:7,letterSpacing:0.5,fontFamily:"Cinzel,serif",lineHeight:1}}>
+              {orient===null?"AUTO":isLandscape?"LAND":"PORT"}
+            </span>
+          </div>
+        </div>
+        {/* Mute button */}
+        <div
+          onClick={()=>{
+            const next = !muteAudio;
+            setMuteAudio(next);
+            window._sfxMuted = next;
+            if(next) {
+              sfx.stopIntro(); // muting — stop immediately
+            } else if(introStep !== 0 && introStep !== 4) {
+              sfx.startIntro(); // unmuting on menu/lobby screens — restart music
+            }
+          }}
+          style={{
+            width:44,height:44,borderRadius:"50%",flexShrink:0,
+            background:"rgba(40,20,4,0.8)",border:"1.5px solid rgba(80,40,8,0.5)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
+            transition:"all 0.2s",
+          }}
+          title={muteAudio?"Unmute sounds":"Mute sounds"}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,140,20,0.7)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+        >
+          <span style={{color:"#c8a040",fontSize:18}}>{muteAudio?"🔇":"🔊"}</span>
+        </div>
+        {/* Fix #22: Resign button — only in online/matchmaking, only mid-game, two-tap confirm */}
+        {(gameMode==="online"||gameMode==="matchmaking")&&!over&&introStep===4&&(
+          <div
+            onClick={()=>{
+              if(!resignConfirm){
+                setResignConfirm(true);
+                if(_resignTimer.current) clearTimeout(_resignTimer.current);
+                _resignTimer.current = setTimeout(()=>setResignConfirm(false),3000);
+              } else {
+                if(_resignTimer.current){ clearTimeout(_resignTimer.current); _resignTimer.current=null; }
+                setResignConfirm(false);
+                // Fix #33: stop animation before showing lose overlay
+                clearTimeout(_tr.current);
+                _br.current = false;
+                setBusy(false);
+                setAnim({lit:null,cap:null,relay:null});
+                setHandAnim({pit:null,pose:"hover",player:0});
+                if(connRef.current&&connRef.current.open) connRef.current.send({type:"resign"});
+                // Local side loses — opponent will receive "resign" and call setResult("win")
+                const b = board; const s = scores;
+                const totalShells = b.reduce((a,v)=>a+v,0);
+                const finalScores = [s[0], s[1]+totalShells];
+                setBoard(Array(14).fill(0));
+                setScores(finalScores);
+                setOver(true);
+                setResult("lose");
+                setMsg("You resigned.");
+                sfx.lose();
+              }
+            }}
+            title={resignConfirm?"Tap again to confirm resign":"Resign game"}
+            style={{
+              width:44,height:44,borderRadius:"50%",flexShrink:0,
+              background:resignConfirm?"rgba(160,20,10,0.5)":"rgba(40,20,4,0.8)",
+              border:`1.5px solid ${resignConfirm?"rgba(255,80,60,0.8)":"rgba(80,40,8,0.5)"}`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              cursor:"pointer",boxShadow:resignConfirm?"0 0 12px rgba(255,60,40,0.4)":"0 2px 8px rgba(0,0,0,0.5)",
+              transition:"all 0.2s",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=resignConfirm?"rgba(255,100,80,1)":"rgba(200,80,40,0.7)";}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=resignConfirm?"rgba(255,80,60,0.8)":"rgba(80,40,8,0.5)";}}
+          >
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+              <span style={{fontSize:resignConfirm?11:16,lineHeight:1,color:resignConfirm?"#ff6050":"#c8a040"}}>
+                {resignConfirm?"SURE?":"⚑"}
+              </span>
+            </div>
+          </div>
+        )}
+        {/* You score */}
+        <div ref={el=>scoreRefs.current[0]=el} style={{
+          width:isDesktop?70:isLandscape?56:60,borderRadius:12,padding:isDesktop?"12px 8px":isLandscape?"6px 8px":"10px 6px",
+          background:turn===0&&!over?"linear-gradient(145deg,#1a4a9a,#0e2e6a)":"rgba(40,20,4,0.85)",
+          border:`1.5px solid ${turn===0&&!over?"rgba(60,120,220,0.7)":"rgba(80,40,8,0.6)"}`,
+          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,
+          boxShadow:tripleFlash[0]?"0 0 0 4px rgba(255,220,40,0.9),0 0 32px rgba(255,200,0,0.7)":turn===0&&!over?"0 0 16px rgba(60,120,220,0.4),0 2px 8px rgba(0,0,0,0.5)":"0 2px 8px rgba(0,0,0,0.5)",
+          animation:tripleFlash[0]?"tripleScoreFlash 0.6s ease":"none",
+          transition:"all 0.35s",position:"relative",flexShrink:0,
+        }}>
+          <span style={{
+            fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:1,
+            color:tripleFlash[0]?"#ffe040":turn===0&&!over?"#a0d0ff":"#5a3a10",
+            writingMode:isLandscape?"horizontal-tb":"vertical-lr",transform:"rotate(0deg)",
+            display:"inline-block",whiteSpace:"nowrap",
+            animation:tripleFlash[0]?"pulse 0.3s ease":turn===0&&!over&&!busy?"pulse 1.2s infinite":"none",
+          }}>{gameMode==="pvp"?"P1":"You"}: {scores[0]}</span>
+          {turn===0&&!over&&<div style={{
+            width:8,height:8,borderRadius:"50%",
+            background:"#60a8ff",boxShadow:"0 0 8px rgba(96,168,255,0.8)",flexShrink:0,
+          }}/>}
+        </div>
+      </div>{}
+
+      <_FS events={flySeeds} />
+      {tripleFlies.map(tf => (
+        <TripleFly key={tf.id} fromEl={tf.fromEl} toEl={tf.toEl} isLandscape={isLandscape} capN={tf.capN}
+          onDone={()=>{
+            setTripleFlies(prev=>prev.filter(e=>e.id!==tf.id));
+            setTripleFlash(prev=>({...prev,[tf.owner]:true}));
+            setTimeout(()=>setTripleFlash(prev=>({...prev,[tf.owner]:false})),400);
+          }}/>
+      ))}
+      <_HOB
+        activePit={handAnim.pit}
+        pose={handAnim.pose}
+        player={handAnim.player}
+        pitRefs={pitRefs}
+      />
+      {result && (
+        <div style={{
+          position:"fixed",inset:0,zIndex:2000,
+          background:"rgba(0,0,0,0.72)",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          animation:"introFadeIn 0.3s ease both",
+        }}
+        >
+          {result==="win" && Array.from({length:18}).map((_,i)=>(
+            <div key={i} style={{
+              position:"fixed",
+              left:`${5 + (i * 5.2) % 90}%`,
+              top:`-${20 + (i * 7) % 40}px`,
+              fontSize:`${16 + (i * 3) % 18}px`,
+              animation:`shellRain ${2.0 + (i * 0.18) % 2.0}s ${(i * 0.12) % 1.4}s linear forwards`,
+              pointerEvents:"none",
+              zIndex:1001,
+            }}>🐚</div>
+          ))}
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{
+              position:"fixed",top:"50%",left:"50%",
+              transform:isLandscape?"translate(-50%,-50%)":"translate(-50%,-50%) rotate(90deg)",
+              // Fix #11: popIn has rotate(90deg) for portrait; popInPortrait is the landscape slide-in
+              animation:`${isLandscape?"popIn":"popInPortrait"} 0.45s cubic-bezier(0.22,1,0.36,1) both`,
+              background:"linear-gradient(145deg,#2a1002 0%,#1a0800 50%,#2e1204 100%)",
+              border:`2px solid ${result==="win"?"#ffe050":result==="lose"?"#a04020":result==="waiting"?"#6a4a20":"#6a5020"}`,
+              borderRadius:24,
+              padding:isLandscape?"20px 32px 16px":"36px 40px 28px",
+              display:"flex",
+              flexDirection:isLandscape?"row":"column",
+              alignItems:"center",
+              gap:isLandscape?24:16,
+              boxShadow:`0 0 60px ${result==="win"?"rgba(255,210,40,0.25)":result==="lose"?"rgba(160,60,20,0.25)":"rgba(100,80,20,0.2)"},0 24px 80px rgba(0,0,0,0.9)`,
+              minWidth:isLandscape?"auto":260,
+              maxWidth:isLandscape?"90vw":"85vw",
+              maxHeight:"90vh",
+              overflowY:"auto",
+            }}>
+            <div style={{fontSize:64,lineHeight:1,filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.8))"}}>
+              {result==="win"?"🏆":result==="lose"?(gameMode==="pvp"?"🎮":(gameMode==="online"||gameMode==="matchmaking")?"🌍":"🤖"):"🤝"}
+            </div>
+            <div style={{
+              fontFamily:"Cinzel,serif",fontSize:28,fontWeight:700,letterSpacing:4,
+              textAlign:"center",lineHeight:1.2,
+              background:result==="win"
+                ?"linear-gradient(135deg,#f6e070,#c87c10,#f0b830)"
+                :result==="lose"
+                ?"linear-gradient(135deg,#e07050,#a03010,#c05030)"
+                :result==="waiting"
+                ?"linear-gradient(135deg,#a09050,#605020,#908040)"
+                :"linear-gradient(135deg,#c0b060,#807030,#b0a050)",
+              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
+              filter:"drop-shadow(0 2px 12px rgba(0,0,0,0.8))",
+            }}>
+              {result==="win"?(gameMode==="pvp"?"Player 1 Wins!":"You Win!"):result==="lose"?(gameMode==="pvp"?"Player 2 Wins!":(gameMode==="online"||gameMode==="matchmaking")?"Opponent Wins!":"AI Wins!"):result==="waiting"?"Rematch Requested":"It's a Draw!"}
+            </div>
+            <div style={{
+              fontFamily:"Crimson Text,serif",fontSize:18,
+              color:result==="win"?"#c8a040":result==="lose"?"#a06040":"#807040",
+              letterSpacing:1,textAlign:"center",
+            }}>
+              {scores[0]} – {scores[1]}
+            </div>
+            <div style={{
+              fontFamily:"Crimson Text,serif",fontSize:13,fontStyle:"italic",
+              color:"#5a3810",textAlign:"center",
+            }}>
+              {(()=>{
+                const io=gameMode==="online"||gameMode==="matchmaking";
+                if(result==="win") return gameMode==="pvp"?"Player 1 claims the cowries!":io?"You claimed the cowries!":"The cowries have spoken in your favour.";
+                if(result==="lose") return gameMode==="pvp"?"Player 2 claims the cowries!":io?"Your opponent claimed the cowries!":"The AI has mastered the ancient art.";
+                return "A perfectly balanced game.";
+              })()}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,width:"80%",margin:"4px 0"}}>
+              <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(180,120,30,0.4))"}}/>
+              <span style={{fontSize:11,color:"rgba(200,140,30,0.5)"}}>◆</span>
+              <div style={{flex:1,height:1,background:"linear-gradient(90deg,rgba(180,120,30,0.4),transparent)"}}/>
+            </div>
+            {result==="waiting" ? (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+                <div style={{display:"flex",gap:8}}>
+                  {[0,1,2].map(i=>(
+                    <div key={i} style={{width:9,height:9,borderRadius:"50%",background:"#c8a040",
+                      opacity:0.8,animation:`pulse ${0.8+i*0.25}s ease-in-out infinite`}}/>
+                  ))}
+                </div>
+                <span style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#7a5a3a",fontStyle:"italic"}}>
+                  Waiting for host…
+                </span>
+              </div>
+            ) : (
+            <button
+              onClick={()=>{
+                sfx.btnClick();
+                if(gameMode==="online"||gameMode==="matchmaking"){
+                  if(onlineRole==="host"){
+                    // Fix #14: host resets first, then sends restart + sync so guest gets
+                    // the fresh board state immediately, preventing draw-rematch desync.
+                    const freshBoard = _ib(shellCount);
+                    setResult(null);
+                    setBoard(freshBoard); setScores([0,0]); setTurn(0); setOver(false);
+                    _fc.current={ [_FH]: new Set(), [_FA]: new Set() };
+                    if(connRef.current&&connRef.current.open){
+                      connRef.current.send({type:"restart", shellCount});
+                      // Send a sync immediately after so guest board matches exactly
+                      connRef.current.send({
+                        type:"sync",
+                        board: freshBoard,
+                        scores: [0,0],
+                        fcH: [],
+                        fcA: [],
+                      });
+                    }
+                    reset();
+                    return;
+                  } else {
+                    // Guest requests rematch — disable button and wait for host restart.
+                    // Fix #33: replace Play Again button text to show waiting state,
+                    // and the host restart message will call reset() which clears result.
+                    sendRematch();
+                    setMsg("Waiting for host to restart…");
+                    setResult("waiting"); // special state: hides Play Again, shows spinner
+                    return;
+                  }
+                }
+                setResult(null); reset();
+              }}
+              style={{
+                padding:"14px 44px",borderRadius:30,
+                fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:4,textTransform:"uppercase",
+                color:"#c8a040",cursor:"pointer",
+                background:"linear-gradient(135deg,rgba(80,34,4,0.95),rgba(28,10,0,0.98))",
+                border:"1.5px solid rgba(160,90,10,0.7)",
+                boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",
+                transition:"all 0.25s",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(220,160,20,0.8)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";}}
+            >Play Again</button>
+            )}
+            <button
+              onClick={()=>{sfx.pageBack();fullReset();setIntroStep(2);}}
+              style={{
+                padding:"10px 32px",borderRadius:30,
+                fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",
+                color:"#7a5a3a",cursor:"pointer",
+                background:"transparent",
+                border:"1.5px solid rgba(100,60,20,0.5)",
+                boxShadow:"none",
+                transition:"all 0.25s",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.color="#c87050";e.currentTarget.style.borderColor="rgba(180,80,30,0.7)";}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#7a5a3a";e.currentTarget.style.borderColor="rgba(100,60,20,0.5)";}}
+            >⇄ Change Mode</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<Pallankuzhi />);</script>
+
+  <!-- Google AdSense Auto Ads -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6396093401293463" crossorigin="anonymous"></script>
+
+    <!-- PWA: Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch(err => console.warn('[PWA] SW registration failed:', err));
+      });
+    }
+  </script>
+
+</body>
+</html>
