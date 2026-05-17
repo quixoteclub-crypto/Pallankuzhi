@@ -63,4 +63,5 @@ jobs:
             🐚 Pallankuzhi Android APK
             Built automatically from latest code.
             Download and install the APK below.
-          files: android/app/build/outputs/a
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          
