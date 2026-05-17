@@ -34,7 +34,14 @@ jobs:
           npx cap sync android
       - name: Fix Kotlin duplicate class error
         run: |
-          sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.10'/" android/build.gradle
+          echo "" >> android/build.gradle
+          echo "configurations.all {" >> android/build.gradle
+          echo "    resolutionStrategy {" >> android/build.gradle
+          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'" >> android/build.gradle
+          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10'" >> android/build.gradle
+          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10'" >> android/build.gradle
+          echo "    }" >> android/build.gradle
+          echo "}" >> android/build.gradle
       - name: Build APK
         run: |
           cd android
