@@ -68,9 +68,7 @@
     // Firebase console before going to production.
     firebase.initializeApp({
       apiKey: "AIzaSyDUylqivPJj7Eq45-C_3sanePJI99YXH6s",
-      authDomain: window.location.hostname === 'quixoteclub-crypto.github.io'
-        ? 'quixoteclub-crypto.github.io'
-        : 'pallankuzhi-53823.firebaseapp.com',
+      authDomain: 'pallankuzhi-53823.firebaseapp.com',
       databaseURL: "https://pallankuzhi-53823-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "pallankuzhi-53823",
       storageBucket: "pallankuzhi-53823.firebasestorage.app",
@@ -82,20 +80,21 @@
       var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
       if (isNative) {
-        // Running inside Capacitor (Android/iOS native app)
-        // Use debug token for development/testing.
-        // IMPORTANT: Remove this debug token before publishing to Play Store
-        // and replace with Play Integrity provider via the native SDK.
-        firebase.appCheck().activate(
-          new firebase.appCheck.CustomProvider({
-            getToken: function() {
-              return Promise.resolve({
-                token: 'E906B3E9-2026-4F49-A302-9AAE531693BA'
-              });
-            }
-          }),
-          true
-        );
+        // Running inside Capacitor (Android/iOS native app).
+        // Fix #5: The hardcoded debug token has been removed. In production builds,
+        // use Play Integrity via the native Firebase SDK (capacitor-firebase or
+        // @capacitor-firebase/app-check). For local development only, set the debug
+        // token via the Firebase console's App Check debug token registration and
+        // pass it through a build-time environment variable — never hardcode it here.
+        //
+        // Example for dev-only (requires build tooling like Vite/webpack):
+        //   if (process.env.NODE_ENV !== 'production') {
+        //     window.FIREBASE_APPCHECK_DEBUG_TOKEN = process.env.APPCHECK_DEBUG_TOKEN;
+        //   }
+        //
+        // For now App Check is skipped on native too; re-enable with Play Integrity
+        // once the native SDK integration is set up.
+        // firebase.appCheck().activate( new PlayIntegrityProvider(), true );
       } else {
         // Web: skip App Check — Auth handles its own security via OAuth
       }
@@ -888,52 +887,59 @@ function _st(board, start, player, captureAt=3) {
   const _pf = FORBIDS.map(fp => OVAL[((_oix[fp] - 1) + OVAL.length) % OVAL.length]);
   const _ppf = FORBIDS.map(fp => OVAL[((_oix[fp] - 2) + OVAL.length) % OVAL.length]);
   let _cf = null;
+  
   for(;;) {
     const cnt=b[cur]; if(!cnt) break;
     b[cur]=0;
     steps.push({type:"pick", pit:cur, board:[...b], gain:gains[player], gains:[...gains]});
     let pos=cur;
-    for(let s=0;s<cnt;s++){
+    
+    for(let s=0; s<cnt; s++){
       pos=nextPit(pos);
       b[pos]++;
-      steps.push({type:"sow",pit:pos,board:[...b],gain:gains[player],gains:[...gains]});
-      // Fix #2: Magic capture only triggers on the pit just sowed into, not all pits.
-      // Traditional Pallankuzhi rule: when the shell you drop makes a pit reach exactly
-      // captureAt shells, that pit is captured by the side that owns it.
-      if(pos!==_FH && pos!==_FA && b[pos]===captureAt){
-        const _to=pos<=6?0:1;
-        b[pos]=0;
-        gains[_to]+=captureAt;
-        steps.push({type:"triple",pit:pos,owner:_to,board:[...b],gain:gains[player],gains:[...gains]});
+      steps.push({type:"sow", pit:pos, board:[...b], gain:gains[player], gains:[...gains]});
+      
+      // Magic capture: when a pit reaches exactly captureAt shells
+      if(pos !== _FH && pos !== _FA && b[pos] === captureAt){
+        const _to = pos <= 6 ? 0 : 1;
+        b[pos] = 0;
+        gains[_to] += captureAt;  // FIXED: uses captureAt instead of hardcoded 3
+        steps.push({type:"triple", pit:pos, owner:_to, board:[...b], gain:gains[player], gains:[...gains]});
       }
     }
+    
     const _pfi = _pf.indexOf(pos);
     if(_pfi !== -1){
       _cf = FORBIDS[_pfi];
-      steps.push({type:"end",pit:pos,board:[...b],gain:gains[player],gains:[...gains]}); break;
+      steps.push({type:"end", pit:pos, board:[...b], gain:gains[player], gains:[...gains]});
+      break;
     }
+    
     const _ppfi = _ppf.indexOf(pos);
-    if(_ppfi !== -1 && b[_pf[_ppfi]]===0){
-      steps.push({type:"end",pit:pos,board:[...b],gain:gains[player],gains:[...gains]}); break;
+    if(_ppfi !== -1 && b[_pf[_ppfi]] === 0){
+      steps.push({type:"end", pit:pos, board:[...b], gain:gains[player], gains:[...gains]});
+      break;
     }
-    const nxt=nextPit(pos);
-    if(b[nxt]>0){
-      steps.push({type:"relay",pit:nxt,board:[...b],gain:gains[player],gains:[...gains]});
-      cur=nxt; continue;
+    
+    const nxt = nextPit(pos);
+    if(b[nxt] > 0){
+      steps.push({type:"relay", pit:nxt, board:[...b], gain:gains[player], gains:[...gains]});
+      cur = nxt;
+      continue;
     } else {
-      // Capture rule: last shell next to empty pit → capture seeds in the next pit of that empty pit
-      const nxtOfEmpty = nextPit(nxt);
-      // Fix #6 (clarification): nxt is the empty pit, nxtOfEmpty is the capture target.
-      // We intentionally do NOT block nxt===_pf[i] (the pit before forbidden) here, because
-      // _pf is only a relay-stop rule, not a capture-block rule. The forbidden pits themselves
-      // (_FH/_FA) are blocked as both the empty pit and the capture target, which is correct.
-      if(b[nxt]===0 && nxtOfEmpty!==undefined && b[nxtOfEmpty]>0 && nxt!==_FH && nxt!==_FA && nxtOfEmpty!==_FH && nxtOfEmpty!==_FA){
-        const amt=b[nxtOfEmpty]; b[nxtOfEmpty]=0; gains[player]+=amt;
-        steps.push({type:"capture",pit:nxtOfEmpty,amount:amt,board:[...b],gain:gains[player],gains:[...gains]});
+      // FIXED: Capture rule - last seed landed in empty pit → capture from pit after empty pit
+      const captureTarget = nextPit(nxt);
+      if(captureTarget !== undefined && b[captureTarget] > 0 && nxt !== _FH && nxt !== _FA && captureTarget !== _FH && captureTarget !== _FA){
+        const amt = b[captureTarget];
+        b[captureTarget] = 0;
+        gains[player] += amt;
+        steps.push({type:"capture", pit:captureTarget, amount:amt, board:[...b], gain:gains[player], gains:[...gains]});
       }
-      steps.push({type:"end",pit:pos,board:[...b],gain:gains[player],gains:[...gains]}); break;
+      steps.push({type:"end", pit:pos, board:[...b], gain:gains[player], gains:[...gains]});
+      break;
     }
   }
+  
   return {steps, finalBoard:b, totalGain:gains[player], gains, _cf};
 }
 const _aiB = (board, capAt) => {
@@ -1012,7 +1018,7 @@ function Pit({seeds,canClick,isLit,isCaptured,isRelay,isForbidden,isHovered,onHo
   else if(isRelay)            {rimCol="#50e880";glow="0 0 0 3px #40e070,0 0 16px #40e07088";scale=1.07;}
   else if(isHovered&&canClick){rimCol="rgba(220,180,60,0.9)";glow="0 0 0 2px rgba(220,180,60,0.7),0 0 12px rgba(220,180,60,0.35)";scale=1.05;}
   else if(canClick)           {rimCol="rgba(210,155,30,0.7)";glow="0 0 0 1.5px rgba(210,155,30,0.4),0 0 14px rgba(200,140,10,0.28)";scale=1.02;}
-  const ariaLabel = `${label || `Pit ${pitIndex}`}, ${seeds} shell${seeds!==1?"s":""}`
+  const ariaLabel = `${label || `Pit ${pitIndex+1}`}, ${seeds} shell${seeds!==1?"s":""}`
     + (isForbidden ? ", forbidden" : canClick ? ", press to sow" : "");
   return (
     <div
@@ -1485,27 +1491,29 @@ function useWindowSize() {
       setTimeout(()=>setSize({w:window.innerWidth, h:window.innerHeight}), 100);
     };
     window.addEventListener("resize", handler);
-    window.addEventListener("orientationchange", handler);
+    // Prefer the modern screen.orientation API (not deprecated) over orientationchange.
+    // Fall back to the legacy event on browsers that don't support screen.orientation.
+    const orientationTarget = (typeof screen !== "undefined" && screen.orientation)
+      ? screen.orientation : window;
+    const orientationEvent = (orientationTarget === screen.orientation)
+      ? "change" : "orientationchange";
+    orientationTarget.addEventListener(orientationEvent, handler);
     return ()=>{
       window.removeEventListener("resize", handler);
-      window.removeEventListener("orientationchange", handler);
+      orientationTarget.removeEventListener(orientationEvent, handler);
     };
   },[]);
   return size;
 }
 
 // Fix #3: Hard AI — full relay-chain simulation so chained captures are correctly valued.
-// _simulateChain recursively follows relay turns from a given board state,
-// accumulating the total gain across all legs of the turn.
 const _simulateChain = (board, startPit, player, capAt, depth=0) => {
-  if(depth > 20) return { totalGain: 0, finalBoard: board }; // safety cap
+  if(depth > 20) return { totalGain: 0, finalBoard: board };
   const { steps, totalGain, finalBoard } = _st(board, startPit, player, capAt);
-  // Fix #24: find the last relay step — it always appears just before the end step.
-  // The old code used indexOf(s) === steps.length-2 which fails when capture/triple
-  // steps are interleaved before the end, causing relay chains to be undervalued.
+  // FIXED: find last relay step (always exists before "end" if relay happened)
   const lastRelay = [...steps].reverse().find(s => s.type === "relay");
-  const lastStep  = steps[steps.length - 1];
-  if(lastRelay && lastStep && lastStep.type !== "end") {
+  if(lastRelay) {
+    // FIXED: use finalBoard (mutated board from this leg), not original board
     const next = _simulateChain(finalBoard, lastRelay.pit, player, capAt, depth+1);
     return { totalGain: totalGain + next.totalGain, finalBoard: next.finalBoard };
   }
@@ -1540,6 +1548,43 @@ const _aiHard = (board, capAt) => {
   return ms.reduce((best, m) => scoreMove(m) > scoreMove(best) ? m : best, ms[0]);
 };
 
+// Medium AI — uses _aiHard's full relay-chain scoring then picks randomly from the
+// top-3 scored moves.  Applying noise to *selection* (not to the score) keeps the AI
+// competent (it always understands relay chains and opponent replies) but makes it
+// occasionally choose a slightly worse option, giving the player room to win.
+const _aiMedium = (board, capAt) => {
+  const ms = _lm(board, 1);
+  if (!ms.length) return -1;
+  const scoreMove = (m) => {
+    const { totalGain: chainGain, finalBoard: chainBoard } = _simulateChain(board, m, 1, capAt);
+    let score = chainGain * 100;
+    const { steps } = _st(board, m, 1, capAt);
+    if(steps.some(s => s.type === "relay")) score += 30;
+    const oppMoves = _lm(chainBoard, 0);
+    if(oppMoves.length > 0) {
+      const oppBest = Math.max(...oppMoves.map(om => {
+        const { totalGain: og } = _st(chainBoard, om, 0, capAt);
+        return og;
+      }));
+      score -= oppBest * 80;
+    }
+    score += board[m]; // tie-break
+    return score;
+  };
+  // Sort moves best-first, take up to 3, then pick one at random.
+  // Edge case: if fewer than 2 legal moves exist the pool is identical to Hard AI —
+  // acceptable, but we skip the random pick to avoid wasting the call.
+  const ranked = [...ms].sort((a,b) => scoreMove(b) - scoreMove(a));
+  if(ranked.length < 2) return ranked[0];          // only 1 move; nothing to randomise
+  const pool   = ranked.slice(0, Math.min(3, ranked.length));
+  // Only include near-equal moves in the pool so Medium never "accidentally" plays Hard
+  // in endgame: discard pool entries whose score is more than 150 pts below the best.
+  const bestScore = scoreMove(pool[0]);
+  const diversePool = pool.filter(m => bestScore - scoreMove(m) <= 150);
+  const finalPool = diversePool.length > 1 ? diversePool : pool; // always keep ≥1
+  return finalPool[Math.floor(Math.random() * finalPool.length)];
+};
+
 function Pallankuzhi() {
   const [board,  setBoard]  = useState(()=>_ib(6));
   const [scores, setScores] = useState([0,0]);
@@ -1554,7 +1599,15 @@ function Pallankuzhi() {
   const [roomCode,     setRoomCode]     = useState("");
   const [joinInput,    setJoinInput]    = useState("");
   const [onlineStatus, setOnlineStatus] = useState("");
-  const [matchPlayers, setMatchPlayers] = useState(0);      // online player count
+  const [matchPlayers,  setMatchPlayers]  = useState(0); // total online player count
+  // ── TUTORIAL ──
+  const [showTutorial,   setShowTutorial]   = useState(false);
+  const [tutStep,        setTutStep]        = useState(0);   // 0-7 tutorial steps
+  const [tutBoard,       setTutBoard]       = useState(null);// locked tutorial board state
+  const [tutHighlight,   setTutHighlight]   = useState(null);// highlighted pit index
+  const [tutCapture,     setTutCapture]     = useState(null);// captured pit flash
+  const [tutRelay,       setTutRelay]       = useState(null);// relay pit flash
+  const [waitingCount,  setWaitingCount]  = useState(0); // players currently in matchmaking queue
   const peerRef    = useRef(null);
   const roomTimeoutRef = useRef(null);
   const connRef    = useRef(null);
@@ -1565,14 +1618,17 @@ function Pallankuzhi() {
   const [waitingForConfig, setWaitingForConfig] = useState(false);
   const [resignConfirm, setResignConfirm] = useState(false); // Fix #22: two-tap resign safety
   const _resignTimer = useRef(null); // Fix #26: cleanup ref for resign confirm timeout
+  const _rewardProcessed = useRef(false); // Fix: prevent double coin/XP/win write if level-up re-fires this effect
   // Fix #6: live ref for onlineStep so setTimeout callbacks never read stale closure values
   const onlineStepRef = useRef("menu");
   const [orient, setOrient] = useState(null); // null=auto, "portrait", "landscape"
   const [muteAudio, setMuteAudio] = useState(false);
-  const [aiDifficulty, setAiDifficulty] = useState("hard"); // "easy" | "hard"
+  const [aiDifficulty, setAiDifficulty] = useState("medium"); // "easy" | "medium" | "hard"
   const [fbUser, setFbUser] = useState(window._fbuser || null);
   const [userStats, setUserStats] = useState({wins:0,losses:0,draws:0});
-  const [authLoading, setAuthLoading] = useState(false);
+  // Fix: initialize authLoading to true so the sign-in button does not flash on mobile
+  // redirect return — onAuthStateChanged will set it false once Firebase resolves the session.
+  const [authLoading, setAuthLoading] = useState(()=>!!window._fbauth?.currentUser===false && !window._fbuser ? true : false);
   const [showProfile, setShowProfile] = useState(false);
   const [showInGameProfile, setShowInGameProfile] = useState(false);
 
@@ -1645,6 +1701,11 @@ function Pallankuzhi() {
     window._onAuthChange = (user, fromRedirect) => {
       setFbUser(user);
       setAuthLoading(false);
+      if(!user) {
+        // User signed out — peer/match cleanup is handled by the unmount effect.
+        // introStep is already set to 0 by signOut(); nothing else needed here.
+        return;
+      }
       if(user && (fromRedirect || window._fbRedirectDone)) {
         window._fbRedirectDone = false;
         setIntroStep(2);
@@ -1662,27 +1723,31 @@ function Pallankuzhi() {
             setLevel(getLevelFromXp(d.xp||0));
           }
         });
-        // Daily login bonus check — runs once on sign-in
+        // Daily login bonus — uses a transaction on the whole login record to prevent
+        // race conditions (multiple tabs open, rapid re-signs, etc.) from claiming twice.
         const todayStr = new Date().toISOString().slice(0,10); // "YYYY-MM-DD"
-        window._fbdb.ref('users/'+user.uid+'/lastLoginDate').once('value', snap=>{
-          const last = snap.val()||'';
-          if(last === todayStr) return; // already claimed today
-          // Calculate yesterday string
-          const yest = new Date(Date.now()-86400000).toISOString().slice(0,10);
-          window._fbdb.ref('users/'+user.uid+'/loginStreak').once('value', sSnap=>{
-            const curStreak = sSnap.val()||0;
-            const newStreak = last===yest ? curStreak+1 : 1; // consecutive or reset to 1
-            // Reward: day 1=25, 2=30, 3=40, 4=50, 5=65, 6=80, 7=100, then repeats from 50
-            const DAY_REWARDS = [25,30,40,50,65,80,100];
-            const reward = DAY_REWARDS[Math.min(newStreak-1,6)];
-            window._fbdb.ref('users/'+user.uid).update({
-              lastLoginDate: todayStr,
-              loginStreak: newStreak,
-              coins: firebase.database.ServerValue.increment(reward),
-            });
-            setDailyReward({coins: reward, day: newStreak});
-            setShowDailyModal(true);
-          });
+        const yest     = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        window._fbdb.ref('users/'+user.uid+'/dailyLogin').transaction(current=>{
+          const data = current || { lastLoginDate: '', loginStreak: 0 };
+          // Already claimed today — abort transaction (returning undefined cancels it)
+          if(data.lastLoginDate === todayStr) return undefined;
+          const newStreak = data.lastLoginDate === yest ? (data.loginStreak||0)+1 : 1;
+          return { lastLoginDate: todayStr, loginStreak: newStreak };
+        }, (error, committed, snap)=>{
+          if(error || !committed) return; // aborted (already claimed) or error — do nothing
+          const data = snap.val();
+          const DAY_REWARDS = [25,30,40,50,65,80,100];
+          const reward = DAY_REWARDS[Math.min(data.loginStreak-1,6)];
+          // Write coins separately (increment is safe without a transaction here since
+          // the /dailyLogin transaction above guarantees we only reach this once per day).
+          // Fix Bug 1: streak data lives inside /dailyLogin (that's what the transaction
+          // wrote). The old code also wrote lastLoginDate/loginStreak to the main user
+          // object via a separate .update() that raced against the /dailyLogin snapshot
+          // and could silently fail.  We now keep everything in /dailyLogin and only
+          // increment coins on the main user node.
+          window._fbdb.ref('users/'+user.uid+'/coins').transaction(v=>(v||0)+reward);
+          setDailyReward({coins: reward, day: data.loginStreak});
+          setShowDailyModal(true);
         });
       }
     };
@@ -1713,12 +1778,34 @@ function Pallankuzhi() {
     }
     window._fbauth.signOut();
     setShowProfile(false);
+    setShowInGameProfile(false);
+    // Fix: clear all user state so stale data does not linger if another user signs in
+    // on the same device in the same browser session.
+    setCoins(0);
+    setXp(0);
+    setLevel(1);
+    setWinStreak(0);
+    setBestStreak(0);
+    setLoginStreak(0);
+    setUserStats({wins:0, losses:0, draws:0});
+    setStreakBonus(null);
+    setLastCoinReward({coins:0, xp:0});
+    // Navigate back to home screen so user does not remain on game board as a ghost.
+    // Note: fullReset/reset are defined after signOut so we cannot call them directly here.
+    // Instead we set introStep to 0; the onAuthStateChanged firing with null user will
+    // handle any remaining peer/match cleanup via the existing unmount effect.
+    setIntroStep(0);
   };
 
   // Save result to Firebase after game ends — also award coins, XP, and update win streak
   useEffect(()=>{
     if(!result || !fbUser || gameMode==="pvp") return;
     if(result==="win"||result==="lose"||result==="draw") {
+      // Fix: guard against double-fire — level is in the dep array so this effect re-runs
+      // when a win causes a level-up (setLevel fires inside setXp). Without this guard,
+      // wins/coins/XP would all be written to Firebase twice for level-up wins.
+      if(_rewardProcessed.current) return;
+      _rewardProcessed.current = true;
       const field = result==="win"?"wins":result==="lose"?"losses":"draws";
       window._fbdb.ref('users/'+fbUser.uid+'/'+field).transaction(v=>(v||0)+1);
 
@@ -1797,7 +1884,7 @@ function Pallankuzhi() {
         setTimeout(()=>setCoinFlash(false), 2000);
       }
     }
-  },[result, level]);  // include level so coin bonus uses current level, not stale closure
+  },[result, level]);  // level stays in deps so coin bonus reads current level; _rewardProcessed guards against double-fire
   const {w: winW, h: winH} = useWindowSize();
   const isDesktop = winW >= 1024;
   const isTablet  = winW >= 768 && winW < 1024;
@@ -1826,6 +1913,9 @@ function Pallankuzhi() {
   const _llp = useRef(null);
   const _br  = useRef(false);
   const _tr = useRef(null);
+  // Fix Bug 5: separate storage for fly-seed cleanup timers so they never overwrite
+  // _tr.current (the main animation step timer).  All timers are cancelled in reset().
+  const _fsTimers = useRef([]);
   const pitRefs  = useRef({});
   const scoreRefs = useRef({0: null, 1: null});
   // Fix #14: use React refs for PeerJS callbacks instead of window globals
@@ -1906,6 +1996,7 @@ function Pallankuzhi() {
   const _wireConn = useCallback((conn, role, sc)=>{
     connRef.current = conn;
     conn.on("open",()=>{
+      if(!_mountedRef.current) return; // guard: don't setState on unmounted component
       // Clear the room-wait timeout — connection succeeded
       if(roomTimeoutRef.current){clearTimeout(roomTimeoutRef.current);roomTimeoutRef.current=null;}
       // Fix Bug 4: clean up our own Firebase matchmaking entry now that we're connected.
@@ -1933,6 +2024,10 @@ function Pallankuzhi() {
       }
     });
     conn.on("data",(data)=>{
+      // Fix Bug 3: guard all setState calls — if the component unmounted while a
+      // PeerJS data callback was pending (e.g. during rapid mode switches) the
+      // callbacks would still fire and attempt to update state on a dead component.
+      if(!_mountedRef.current) return;
       if(data.type==="config"){
         // guest receives config — unlock board now that game state is known
         setWaitingForConfig(false);
@@ -2014,6 +2109,7 @@ function Pallankuzhi() {
       }
     });
     conn.on("close",()=>{
+      if(!_mountedRef.current) return; // guard: don't setState on unmounted component
       // Fix #37: if game is still running when opponent disconnects, end the game
       // so the player isn't stuck on a frozen board.
       setOnlineStatus("Opponent disconnected.");
@@ -2035,6 +2131,7 @@ function Pallankuzhi() {
       }
     });
     conn.on("error",(err)=>{
+      if(!_mountedRef.current) return; // guard: don't setState on unmounted component
       setOnlineStatus("Connection error: "+(err&&err.type||"unknown"));
       if(!_overRef.current){
         clearTimeout(_tr.current);
@@ -2049,6 +2146,43 @@ function Pallankuzhi() {
     });
   },[]);
 
+  // ── PeerJS server config ──────────────────────────────────────────────────
+  // Switch from the free public PeerJS cloud server to our self-hosted instance.
+  // Update PEER_HOST to your Railway/Render URL once deployed (without https://).
+  // Leave as null to fall back to the default public PeerJS server (development only).
+  const PEER_HOST = "pallankuzhi-peerjs.up.railway.app"; // ← update this after deploy
+  const PEER_CFG  = {
+    host:   PEER_HOST,
+    port:   443,
+    path:   "/peerjs",
+    secure: true,
+  };
+  // Public PeerJS cloud server (fallback when Railway is unreachable)
+  const PEER_CFG_PUBLIC = {}; // empty = PeerJS defaults to its own cloud
+  // Detect Railway server unavailable: if peer emits "network" or "server-error" before
+  // "open", attempt an automatic fallback to the public PeerJS cloud server, then call
+  // onServerDown only if the fallback also fails.
+  const _peerWithServerCheck = useCallback((id, cfg, onReady, onServerDown)=>{
+    const tryConnect = (useCfg, isFallback) => {
+      const peer = id ? new Peer(id, useCfg) : new Peer(undefined, useCfg);
+      let opened = false;
+      peer.on("open",()=>{ opened=true; onReady(peer); });
+      peer.on("error",(e)=>{
+        if(!opened && (e.type==="network"||e.type==="server-error"||e.type==="socket-error"||e.type==="socket-closed")){
+          peer.destroy();
+          if(!isFallback){
+            // First attempt failed — silently retry with the public PeerJS cloud
+            console.warn("Railway PeerJS unreachable ("+e.type+"), falling back to public server");
+            tryConnect(PEER_CFG_PUBLIC, true);
+          } else {
+            onServerDown(e.type);
+          }
+        }
+      });
+      return peer;
+    };
+    return tryConnect(cfg, false);
+  },[]);
   // ── HOST: create private room ──
   const createRoom = useCallback((sc)=>{
     _cleanupPeer();
@@ -2058,7 +2192,15 @@ function Pallankuzhi() {
     setRoomCode(code);
     setOnlineStep("waiting");
     setOnlineStatus("Room ready — share the code!");
-    const peer = new Peer("palla-"+code);
+    const peer = _peerWithServerCheck(
+      "palla-"+code, PEER_CFG,
+      (p)=>{ /* open: nothing extra needed, connection listener below handles it */ },
+      (errType)=>{
+        _cleanupPeer();
+        setOnlineStep("error");
+        setOnlineStatus("⚠️ Could not reach the game server ("+errType+"). Please check your connection or try again later.");
+      }
+    );
     peerRef.current = peer;
     peer.on("error",(e)=>{ setOnlineStep("error"); setOnlineStatus("Error: "+e.type); });
     peer.on("connection",(conn)=>{
@@ -2084,7 +2226,18 @@ function Pallankuzhi() {
     _cleanupPeer();
     setOnlineStep("waiting");
     setOnlineStatus("Connecting…");
-    const peer = new Peer();
+    const peer = _peerWithServerCheck(
+      undefined, PEER_CFG,
+      (p)=>{
+        const conn = p.connect("palla-"+sanitized);
+        _wireConn(conn,"guest",sc);
+      },
+      (errType)=>{
+        _cleanupPeer();
+        setOnlineStep("error");
+        setOnlineStatus("⚠️ Could not reach the game server ("+errType+"). Please check your connection or try again later.");
+      }
+    );
     peerRef.current = peer;
     peer.on("open",()=>{
       const conn = peer.connect("palla-"+sanitized);
@@ -2156,7 +2309,7 @@ function Pallankuzhi() {
       : Promise.resolve();
     _appCheckPromise
       .then(()=>{
-        const peer = new Peer();
+        const peer = new Peer(undefined, PEER_CFG);
         peerRef.current = peer;
 
         peer.on("open",(peerId)=>{
@@ -2210,11 +2363,21 @@ function Pallankuzhi() {
     const countRef = db.ref("online_count");
     countRef.transaction(c=>(c||0)+1);
     countRef.on("value",(s)=>setMatchPlayers(s.val()||0));
+    // Live queue count: count matchmaking entries with status "waiting"
+    const queueCountRef = db.ref("matchmaking");
+    const _updateQueueCount = (snap) => {
+      if(!snap.val()){ setWaitingCount(0); return; }
+      const entries = Object.values(snap.val());
+      setWaitingCount(entries.filter(e=>e.status==="waiting").length);
+    };
+    queueCountRef.on("value", _updateQueueCount);
     return ()=>{
       // Fix #25: decrement before removing listener — reversed order previously meant
       // the off() could fire before the transaction completed, losing the decrement.
       countRef.transaction(c=>Math.max((c||1)-1,0));
       countRef.off();
+      queueCountRef.off("value", _updateQueueCount);
+      setWaitingCount(0);
     };
   },[]);
 
@@ -2231,6 +2394,7 @@ function Pallankuzhi() {
     }
   },[introStep]);
   const _endG = useCallback((fb,fs)=>{
+    _stopTimer();
     const f=[...fs];
     for(let i=0;i<7;i++)  { if(i!==_FH)  f[0]+=fb[i]; }
     for(let i=7;i<14;i++) { if(i!==_FA) f[1]+=fb[i]; }
@@ -2271,132 +2435,183 @@ function Pallankuzhi() {
     announce(`Game over. ${f[0]>f[1]?`${p1n} wins with ${f[0]} shells`:f[0]<f[1]?`${p2n} wins with ${f[1]} shells`:`Draw`}.`);
     setHandAnim({pit:null,pose:"hover",player:0});
     if(f[0]>f[1]) sfx.win(); else if(f[0]<f[1]) sfx.lose(); else sfx.draw();
-  },[announce,gameMode]);
-  const _finT = useCallback((fb,fs,player)=>{
-    const nxt=player===0?1:0;
-    const nm=_lm(fb,nxt), mm=_lm(fb,player);
-    if(!nm.length&&!mm.length){_endG(fb,fs);return;}
-    if(!nm.length){
-      _br.current=false; setBusy(false);
-      setAnim({lit:null,cap:null,relay:null}); setBoard(fb); setScores(fs); setTurn(player);
-      const isOnlineSkip=gameMode==="online"||gameMode==="matchmaking";
-      const skMsg=gameMode==="pvp"?(player===0?"Player 2 has no moves — Player 1 again!":"Player 1 has no moves — Player 2 again!"):isOnlineSkip?(player===0?"Opponent has no moves — your turn again!":"You have no moves — Opponent goes again!"):(player===0?"AI has no moves — your turn again!":"You have no moves — AI goes again!");
-      setMsg(skMsg); announce(skMsg); return;
-    }
-    _br.current=false; setBusy(false);
-    setAnim({lit:null,cap:null,relay:null}); setBoard(fb); setScores(fs); setTurn(nxt);
-    const isOnlineMode=gameMode==="online"||gameMode==="matchmaking"; const turnMsg=gameMode==="pvp"?(nxt===0?"Player 1 — pick a pit!":"Player 2 — pick a pit!"):isOnlineMode?(nxt===0?"Your turn — pick a pit!":"Opponent’s turn — waiting…"):(nxt===0?"Your turn — pick a pit!":"AI is thinking…");
-    setMsg(turnMsg); announce(turnMsg);
-    setHandAnim({pit:null,pose:"hover",player:nxt});
-  },[_endG,announce,gameMode]);
-  const _rA = useCallback((steps,snapB,snapS,player,skipAnim=false)=>{
-    _br.current=true; setBusy(true);
-    if(skipAnim) {
-      const last=steps[steps.length-1];
-      const fs=[...snapS];
-      if(last.gains) { fs[0]=snapS[0]+last.gains[0]; fs[1]=snapS[1]+last.gains[1]; }
-      else { fs[player]+=last.gain; }
-      setBoard([...last.board]); setScores(fs);
-      setAnim({lit:null,cap:null,relay:null});
-      setHandAnim({pit:null,pose:"hover",player});
-      // Announce total shells captured this turn (gains are per-player incremental amounts)
-      const totalGainSkip = last.gains ? last.gains[player] : last.gain;
-      if(totalGainSkip>0) announce(`Captured ${totalGainSkip} shells.`);
-      _tr.current=setTimeout(()=>_finT(last.board,fs,player),300);
+  },[announce,gameMode,_stopTimer]);
+  const _finT = useCallback((fb, fs, player) => {
+    const nxt = player === 0 ? 1 : 0;
+    const nm = _lm(fb, nxt);
+    const mm = _lm(fb, player);
+    
+    if(!nm.length && !mm.length){
+      _endG(fb, fs);
       return;
     }
-    let idx=0; const DELAY=380;
-    const tick=()=>{
-      if(idx>=steps.length) return;
-      const s=steps[idx];
+    
+    if(!nm.length){
+      _br.current = false;
+      setBusy(false);
+      setAnim({lit:null, cap:null, relay:null});
+      setBoard(fb);
+      setScores(fs);
+      // FIXED: when player has no moves, turn passes to opponent
+      setTurn(player === 0 ? 1 : 0);
+      const isOnlineSkip = gameMode === "online" || gameMode === "matchmaking";
+      const skMsg = gameMode === "pvp" 
+        ? (player === 0 ? "Player 2 has no moves — Player 1 again!" : "Player 1 has no moves — Player 2 again!")
+        : isOnlineSkip 
+          ? (player === 0 ? "Opponent has no moves — your turn again!" : "You have no moves — Opponent goes again!")
+          : (player === 0 ? "AI has no moves — your turn again!" : "You have no moves — AI goes again!");
+      setMsg(skMsg);
+      announce(skMsg);
+      return;
+    }
+    
+    _br.current = false;
+    setBusy(false);
+    setAnim({lit:null, cap:null, relay:null});
+    setBoard(fb);
+    setScores(fs);
+    setTurn(nxt);
+    
+    const isOnlineMode = gameMode === "online" || gameMode === "matchmaking";
+    const turnMsg = gameMode === "pvp" 
+      ? (nxt === 0 ? "Player 1 — pick a pit!" : "Player 2 — pick a pit!")
+      : isOnlineMode 
+        ? (nxt === 0 ? "Your turn — pick a pit!" : "Opponent’s turn — waiting…")
+        : (nxt === 0 ? "Your turn — pick a pit!" : "AI is thinking…");
+    setMsg(turnMsg);
+    announce(turnMsg);
+    setHandAnim({pit:null, pose:"hover", player:nxt});
+  }, [_endG, announce, gameMode]);
+  const _rA = useCallback((steps, snapB, snapS, player, skipAnim = false) => {
+    _br.current = true;
+    setBusy(true);
+    
+    if(skipAnim) {
+      const last = steps[steps.length - 1];
+      const fs = [...snapS];
+      if(last.gains) {
+        fs[0] = snapS[0] + last.gains[0];
+        fs[1] = snapS[1] + last.gains[1];
+      } else {
+        fs[player] += last.gain;
+      }
+      setBoard([...last.board]);
+      setScores(fs);
+      setAnim({lit:null, cap:null, relay:null});
+      setHandAnim({pit:null, pose:"hover", player});
+      const totalGainSkip = last.gains ? last.gains[player] : last.gain;
+      if(totalGainSkip > 0) announce(`Captured ${totalGainSkip} shells.`);
+      _tr.current = setTimeout(() => _finT(last.board, fs, player), 300);
+      return;
+    }
+    
+    let idx = 0;
+    // FIXED: reduced motion users get faster animations
+    const DELAY = _rm ? 80 : 380;
+    
+    const tick = () => {
+      if(idx >= steps.length) return;
+      const s = steps[idx];
       setBoard([...s.board]);
-      const ls=[...snapS];
-      if(s.gains) { ls[0]=snapS[0]+s.gains[0]; ls[1]=snapS[1]+s.gains[1]; }
-      else { ls[player]=snapS[player]+s.gain; }
+      const ls = [...snapS];
+      if(s.gains) {
+        ls[0] = snapS[0] + s.gains[0];
+        ls[1] = snapS[1] + s.gains[1];
+      } else {
+        ls[player] += s.gain;
+      }
       setScores(ls);
-      if(s.type==="pick"){
-        setAnim({lit:s.pit,cap:null,relay:null});
-        setMsg(player===0?"Pick up the seeds…":(gameMode==="pvp"?"Player 2 picking up…":(gameMode==="online"||gameMode==="matchmaking")?"Opponent picking up…":"AI picking up…"));
-        setHandAnim({pit:s.pit,pose:"pinch",player});
+      
+      if(s.type === "pick"){
+        setAnim({lit:s.pit, cap:null, relay:null});
+        setMsg(player === 0 ? "Pick up the seeds…" : (gameMode === "pvp" ? "Player 2 picking up…" : (gameMode === "online" || gameMode === "matchmaking") ? "Opponent picking up…" : "AI picking up…"));
+        setHandAnim({pit:s.pit, pose:"pinch", player});
         _llp.current = s.pit;
         sfx.pick();
-      } else if(s.type==="sow"){
+      } else if(s.type === "sow"){
         const fromPit = _llp.current;
-        const toPit   = s.pit;
+        const toPit = s.pit;
         if(fromPit !== null && pitRefs.current[fromPit] && pitRefs.current[toPit]) {
-          const toEl     = pitRefs.current[toPit];
-          const toRect   = toEl.getBoundingClientRect();
-          // Shell originates from hand position above the destination pit
+          const toEl = pitRefs.current[toPit];
+          const toRect = toEl.getBoundingClientRect();
           const handRect = {
             left: toRect.left,
-            top:  toRect.top - 55,
+            top: toRect.top - 55,
             width: toRect.width,
             height: 10,
           };
           const evId = _fsi.current++;
-          // Pass the live DOM element so FlyArc re-reads its rect after the float is paused
           setFlySeeds(prev => [...prev, { id:evId, fromRect: handRect, toPitEl: toEl }]);
-          // Fix: store timer so it can be cleared on reset/unmount
+          // Fix Bug 5: store fly-seed cleanup timers in _fsTimers (not _tr.current)
+          // so they don't overwrite the animation step timer.
           const fsTimer = setTimeout(() => setFlySeeds(prev => prev.filter(e => e.id !== evId)), 450);
-          _tr.current = fsTimer; // reuse _tr to cancel if reset fires (overwritten by next step timer anyway)
+          _fsTimers.current.push(fsTimer);
         }
         _llp.current = toPit;
-        setAnim({lit:s.pit,cap:null,relay:null});
-        setHandAnim({pit:s.pit,pose:"sow",player});
+        setAnim({lit:s.pit, cap:null, relay:null});
+        setHandAnim({pit:s.pit, pose:"sow", player});
         sfx.sow();
-      } else if(s.type==="relay"){
-        setAnim({lit:null,cap:null,relay:s.pit});
-        setMsg(player===0?"⚡ Relay! Continuing…":(gameMode==="pvp"?"⚡ P2 Relay!":(gameMode==="online"||gameMode==="matchmaking")?"⚡ Opponent Relay!":"⚡ AI relay!"));
-        announce(player===0?"Relay! Continuing your turn.":(gameMode==="pvp"?"Player 2 relay.":(gameMode==="online"||gameMode==="matchmaking")?"Opponent relay.":"AI relay."));
-        setHandAnim({pit:s.pit,pose:"pinch",player});
+      } else if(s.type === "relay"){
+        setAnim({lit:null, cap:null, relay:s.pit});
+        setMsg(player === 0 ? "⚡ Relay! Continuing…" : (gameMode === "pvp" ? "⚡ P2 Relay!" : (gameMode === "online" || gameMode === "matchmaking") ? "⚡ Opponent Relay!" : "⚡ AI relay!"));
+        announce(player === 0 ? "Relay! Continuing your turn." : (gameMode === "pvp" ? "Player 2 relay." : (gameMode === "online" || gameMode === "matchmaking") ? "Opponent relay." : "AI relay."));
+        setHandAnim({pit:s.pit, pose:"pinch", player});
         _llp.current = s.pit;
         sfx.relay();
-      } else if(s.type==="capture"){
-        setAnim({lit:null,cap:s.pit,relay:null});
-        const _isOnlineCapture=gameMode==="online"||gameMode==="matchmaking";
-        const capMsg=player===0?`Captured ${s.amount} shells!`:(gameMode==="pvp"?`P2 captured ${s.amount}!`:_isOnlineCapture?`Opponent captured ${s.amount} shells.`:`AI captured ${s.amount} shells.`);
-        setMsg(player===0?`✨ Captured ${s.amount}!`:(gameMode==="pvp"?`✨ P2 captured ${s.amount}!`:_isOnlineCapture?`🌍 Opponent captured ${s.amount}!`:`🤖 AI captured ${s.amount}!`));
+      } else if(s.type === "capture"){
+        setAnim({lit:null, cap:s.pit, relay:null});
+        const _isOnlineCapture = gameMode === "online" || gameMode === "matchmaking";
+        const capMsg = player === 0 ? `Captured ${s.amount} shells!` : (gameMode === "pvp" ? `P2 captured ${s.amount}!` : _isOnlineCapture ? `Opponent captured ${s.amount} shells.` : `AI captured ${s.amount} shells.`);
+        setMsg(player === 0 ? `✨ Captured ${s.amount}!` : (gameMode === "pvp" ? `✨ P2 captured ${s.amount}!` : _isOnlineCapture ? `🌍 Opponent captured ${s.amount}!` : `🤖 AI captured ${s.amount}!`));
         announce(capMsg);
-        setHandAnim({pit:s.pit,pose:"scoop",player});
+        setHandAnim({pit:s.pit, pose:"scoop", player});
         sfx.capture(s.amount);
-      } else if(s.type==="triple"){
-        setAnim({lit:null,cap:s.pit,relay:null});
+      } else if(s.type === "triple"){
+        setAnim({lit:null, cap:s.pit, relay:null});
         const tripleOwner = s.owner;
-        const capN = shellCount===6?3:shellCount===12?6:12;
-        const _isOnlineTriple=gameMode==="online"||gameMode==="matchmaking";
-        const tripleMsg = tripleOwner===0 ? `✨ Magic! +${capN} captured!` : (gameMode==="pvp" ? `✨ P2 Magic! +${capN}!` : _isOnlineTriple ? `🌍 Opponent Magic! +${capN}!` : `🤖 AI Magic! +${capN}!`);
-        setMsg(tripleMsg);
-        announce(`Magic capture! Pit ${s.pit+1} had ${capN} shells, taken by ${tripleOwner===0?(gameMode==="pvp"?"Player 1":"you"):(gameMode==="pvp"?"Player 2":_isOnlineTriple?"opponent":"AI")}.`);
+        const capN = shellCount === 6 ? 3 : shellCount === 12 ? 6 : 12;
+        const _isOnlineTriple = gameMode === "online" || gameMode === "matchmaking";
+        setMsg(tripleOwner === 0 ? `✨ Magic! +${capN} captured!` : (gameMode === "pvp" ? `✨ P2 Magic! +${capN}!` : _isOnlineTriple ? `🌍 Opponent Magic! +${capN}!` : `🤖 AI Magic! +${capN}!`));
+        announce(`Magic capture! Pit ${s.pit+1} had ${capN} shells, taken by ${tripleOwner === 0 ? (gameMode === "pvp" ? "Player 1" : "you") : (gameMode === "pvp" ? "Player 2" : _isOnlineTriple ? "opponent" : "AI")}.`);
         const pitEl = pitRefs.current[s.pit];
         const scoreEl = scoreRefs.current[tripleOwner];
         if(pitEl && scoreEl) {
           const evId = _tfi.current++;
           setTripleFlies(prev => [...prev, { id: evId, fromEl: pitEl, toEl: scoreEl, owner: tripleOwner, capN }]);
         }
-      } else if(s.type==="end"){
-        setAnim({lit:null,cap:null,relay:null});
-        setHandAnim({pit:null,pose:"hover",player});
+      } else if(s.type === "end"){
+        setAnim({lit:null, cap:null, relay:null});
+        setHandAnim({pit:null, pose:"hover", player});
       }
+      
       idx++;
-      if(idx<steps.length){_tr.current=setTimeout(tick,DELAY);}
-      else{
-        const last=steps[steps.length-1];
-        const fs=[...snapS];
-        if(last.gains) { fs[0]=snapS[0]+last.gains[0]; fs[1]=snapS[1]+last.gains[1]; }
-        else { fs[player]+=last.gain; }
-        _tr.current=setTimeout(()=>_finT(last.board,fs,player),600);
+      if(idx < steps.length){
+        _tr.current = setTimeout(tick, DELAY);
+      } else {
+        const last = steps[steps.length - 1];
+        const fs = [...snapS];
+        if(last.gains) {
+          fs[0] = snapS[0] + last.gains[0];
+          fs[1] = snapS[1] + last.gains[1];
+        } else {
+          fs[player] += last.gain;
+        }
+        _tr.current = setTimeout(() => _finT(last.board, fs, player), 600);
       }
     };
+    
     tick();
-  },[_finT,announce,shellCount,gameMode]);
+  }, [_finT, announce, shellCount, gameMode, _rm]);
   const _hC = useCallback((ci, player=0)=>{
+    // Fix #1: Online turn guard — in online/matchmaking the local player is always player-0
+    // from their own perspective. Block any click if it's not their turn (turn!==0).
+    if((gameMode==="online"||gameMode==="matchmaking") && (player!==0 || turn!==0)) return;
     // Fix #5: block interaction while guest is waiting for the host config message
     if(waitingForConfig) return;
     if(_br.current||over||turn!==player) return;
     if(player===0 && (ci===_FH||ci===_FA||board[ci]===0||ci>6)) return;
     if(player===1 && (ci===_FH||ci===_FA||board[ci]===0||ci<7)) return;
     // Online: only local player (player-0 from their view) can trigger moves
-    if((gameMode==="online"||gameMode==="matchmaking") && player!==0) return;
     const capAt = shellCount===6?3:shellCount===12?6:12;
     const {steps,_cf}=_st(board,ci,player,capAt);
     if(_cf!==null) _fc.current[_cf].add(player);
@@ -2416,11 +2631,15 @@ function Pallankuzhi() {
   // Fix #3: reads live refs instead of stale closure values — registered once, always current.
   useEffect(()=>{
     _remoteMoveRef.current = (ci)=>{
+      // Fix #2: Online turn guard — only process remote move when it's the opponent's turn.
+      // If turn is not 1 (opponent's turn), the move arrived out of order or we're in a
+      // bad state — exit early to prevent desync or double-processing.
+      const turn       = _turnRef.current;
+      const over       = _overRef.current;
+      if((gameMode==="online"||gameMode==="matchmaking") && turn!==1) return;
       // Fix: remote moves are always player-1 from the receiver's perspective
       const board      = _boardRef.current;
       const scores     = _scoresRef.current;
-      const turn       = _turnRef.current;
-      const over       = _overRef.current;
       const shellCount = _shellCountRef.current;
       if(_br.current||over||turn!==1) return;
       // Opponent's pits arrive already mirrored to our 7-13 range
@@ -2436,6 +2655,9 @@ function Pallankuzhi() {
   // reset — stable identity via useCallback so _onlineRematch always calls the current version
   const reset = useCallback(()=>{
     clearTimeout(_tr.current);
+    // Fix Bug 5: clear all pending fly-seed cleanup timers
+    _fsTimers.current.forEach(t=>clearTimeout(t));
+    _fsTimers.current = [];
     _br.current=false; setBusy(false);
     setBoard(_ib(shellCount)); setScores([0,0]); setTurn(0); setOver(false);
     setAnim({lit:null,cap:null,relay:null}); setHover(null);
@@ -2451,6 +2673,8 @@ function Pallankuzhi() {
     // Fix #28: clear resign confirm state on every reset so button doesn't stay red
     setResignConfirm(false);
     if(_resignTimer.current){ clearTimeout(_resignTimer.current); _resignTimer.current=null; }
+    // Fix: clear reward guard so the next game can write its result to Firebase
+    _rewardProcessed.current = false;
     sfx.reset();
   }, [shellCount, gameMode, onlineRole]);
 
@@ -2472,12 +2696,17 @@ function Pallankuzhi() {
     timerSecondsRef.current = 30;
   },[]);
 
+  const _mountedRef = useRef(true);
+  useEffect(()=>{ _mountedRef.current=true; return ()=>{ _mountedRef.current=false; }; },[]);
+
   const _startTimer = useCallback(()=>{
     _stopTimer();
     setTimerSeconds(30);
     timerSecondsRef.current = 30;
     setTimerActive(true);
     timerIntervalRef.current = setInterval(()=>{
+      // Fix #4: bail out if component has unmounted to prevent setState warnings
+      if(!_mountedRef.current) return;
       timerSecondsRef.current -= 1;
       setTimerSeconds(timerSecondsRef.current);
       if(timerSecondsRef.current <= 0){
@@ -2490,7 +2719,8 @@ function Pallankuzhi() {
         const b  = _boardRef.current;
         const s  = _scoresRef.current;
         const sc = _shellCountRef.current;
-        if(_br.current || _overRef.current) return;
+        // Fix #7: double-check game hasn't ended or component unmounted during the delay
+        if(_br.current || _overRef.current || !_mountedRef.current) return;
         if(gm==="online"||gm==="matchmaking"){
           if(t===0){
             // Player's turn ran out — treat as forfeit: pick first legal move
@@ -2506,11 +2736,20 @@ function Pallankuzhi() {
           }
         } else {
           const capAt2 = sc===6?3:sc===12?6:12;
-          const m = _aiHard(b,capAt2); // auto-pick best move for the current timed-out player
-          if(m!==-1){
-            const {steps,_cf}=_st(b,m,t,capAt2);
-            if(_cf!==null) _fc.current[_cf].add(t);
-            _rA(steps,b,s,t,false);
+          // Fix: in PvP mode, auto-picking via _aiHard is wrong because _aiHard always
+          // picks from player-1 pits (7-13). If it is Player 1's turn (index 0, pits 0-6),
+          // it would pick an invalid pit. Instead: pick the first legal move for whoever
+          // timed out, regardless of mode. This is fair and side-agnostic.
+          const ms2 = _lm(b, t);
+          if(ms2.length > 0) {
+            const m = gm === "ai" && t === 1
+              ? _aiHard(b, capAt2)   // AI timed out (extremely unlikely) — use hard AI
+              : ms2[0];              // Human timed out (AI/PvP) — pick first legal move
+            if(m !== -1) {
+              const {steps,_cf}=_st(b,m,t,capAt2);
+              if(_cf!==null) _fc.current[_cf].add(t);
+              _rA(steps,b,s,t,false);
+            }
           }
         }
       }
@@ -2537,11 +2776,11 @@ function Pallankuzhi() {
     if(gameMode==="pvp"||gameMode==="online"||gameMode==="matchmaking"||onlineRole!==null) return;
     if(turn!==1||_br.current||over) return;
     // Fix #18: vary AI think delay — Easy is slower/hesitant, Hard is sharp.
-    const aiDelay = aiDifficulty==="hard" ? 300 : 750 + Math.random()*400;
+    const aiDelay = aiDifficulty==="hard" ? 300 : aiDifficulty==="medium" ? 500 + Math.random()*200 : 750 + Math.random()*400;
     const t=setTimeout(()=>{
       if(_br.current||onlineRole!==null) return;
       const capAt2 = shellCount===6?3:shellCount===12?6:12;
-      const m = aiDifficulty==="hard" ? _aiHard(board, capAt2) : _aiB(board, capAt2);
+      const m = aiDifficulty==="hard" ? _aiHard(board, capAt2) : aiDifficulty==="medium" ? _aiMedium(board, capAt2) : _aiB(board, capAt2);
       if(m===-1){
         setMsg("AI has no moves — your turn again!");
         _finT(board,scores,1);
@@ -2853,6 +3092,644 @@ function Pallankuzhi() {
           </div>
         </div>
       )}
+      {/* ══════════════════════════════════════════════════════
+           INTERACTIVE TUTORIAL v2 — Paatti with Web Speech API voiceover
+           Animated seed travel · Lip sync · Forced interactions · 3-phase
+           Board: [3,2,4,0,3,2,2, 3,0,0,0,2,0,0]
+           Sequence: sow→relay→capture (mathematically verified)
+           ══════════════════════════════════════════════════════ */}
+      {showTutorial && React.createElement(()=>{
+        const [tutStarted, setTutStarted] = React.useState(false);  // Safari: gate first speak() behind user gesture
+        const [tStep,      setTStep]      = React.useState(0);
+        const [animPit,    setAnimPit]    = React.useState(null);   // pit currently receiving a seed
+        const [speaking,   setSpeaking]   = React.useState(false);  // mouth open/closed
+        const [paattiMood, setPaattiMood] = React.useState("calm"); // calm|excited|celebrate
+        const [flying,     setFlying]     = React.useState(false);  // seed-travel in progress
+        const [animDone,   setAnimDone]   = React.useState(false);  // animation finished, show Next
+        const [tBoard,     setTBoard]     = React.useState([3,2,4,0,3,2,2,3,0,0,0,2,0,0]);
+        const [litPit,     setLitPit]     = React.useState(null);
+        const [relayPit,   setRelayPit]   = React.useState(null);
+        const [capPit,     setCapPit]     = React.useState(null);
+        const [emptyPit,   setEmptyPit]   = React.useState(null); // empty pit that enables capture
+        const [forbGlow,   setForbGlow]   = React.useState(false);// highlight forbidden pits
+        const [waitTap,    setWaitTap]    = React.useState(false);  // waiting for player tap
+        const [muted,      setMuted]      = React.useState(false);
+        const voiceRef   = React.useRef(null);
+        const autoRef    = React.useRef(null);
+        const voicesReady= React.useRef(false); // Bug fix: voices load async on first call
+        const keepAliveRef = React.useRef(null); // Bug fix: Chrome cuts speech after ~15s
+
+        // ── 10 tutorial steps — clearer, slower, more explicit ─────────────────
+        const STEPS = [
+          // 0: Welcome
+          { title:"Welcome!",
+            line:"I am Paatti 👵🏽 I will teach you Pallankuzhi step by step. Each pit holds cowrie shells. Your pits are on the BOTTOM row. Opponent is on TOP.",
+            mood:"calm", voice:"I am Paatti. I will teach you Pallankuzhi step by step. Your pits are on the bottom row.", action:"next" },
+          // 1: Picking up
+          { title:"Step 1 — Pick up shells",
+            line:"To start your turn, tap a pit in YOUR row (bottom) that has shells. The glowing pit has 2 shells. Tap it! 👆",
+            mood:"calm", voice:"To start your turn, tap a pit in your bottom row. The glowing pit has 2 shells. Tap it!", action:"tap", tapPit:6 },
+          // 2: Sowing direction
+          { title:"Step 2 — Sowing direction",
+            line:"Good! You picked up 2 shells. Now watch them travel ANTI-CLOCKWISE ↺ — one shell drops into each pit as you go around the board.",
+            mood:"calm", voice:"Good! You picked up 2 shells. Watch them travel anti-clockwise around the board.", action:"next" },
+          // 3: Animate the sow
+          { title:"Step 2 — Watch the sow",
+            line:"🐚 Shell 1 drops into pit 13. 🐚 Shell 2 drops into pit 12. The sowing stops here...",
+            mood:"calm", voice:"Shell one drops into pit thirteen. Shell two drops into pit twelve. The sowing stops here.", action:"animate",
+            animate:[{pit:13,from:[3,2,4,0,3,2,0,3,0,0,0,2,0,0]},{pit:12,from:[3,2,4,0,3,2,0,3,0,0,0,2,0,1]}] },
+          // 4: Relay explanation
+          { title:"Step 3 — Relay!",
+            line:"⚡ The last shell landed in a NON-EMPTY pit (pit 12 had shells). This triggers a RELAY — you pick up ALL shells from that pit and keep going!",
+            mood:"excited", voice:"The last shell landed in a non-empty pit. This triggers a relay! Pick up all shells and keep going!", action:"next" },
+          // 5: Animate relay
+          { title:"Step 3 — Relay continues",
+            line:"⚡ Relay from pit 11! The 2 shells continue: 🐚 one into pit 10, 🐚 one into pit 9. Your turn is STILL going!",
+            mood:"excited", voice:"Relay from pit eleven! One shell into pit ten, one shell into pit nine. Your turn is still going!", action:"animate",
+            animate:[{pit:10,from:[3,2,4,0,3,2,0,3,0,0,0,0,1,1]},{pit:9,from:[3,2,4,0,3,2,0,3,0,0,1,0,1,1]}] },
+          // 6: Capture setup
+          { title:"Step 4 — Capture!",
+            line:"✨ The last shell landed next to an EMPTY pit (pit 8 is empty). Look at the pit AFTER the empty one — pit 7 has shells. You CAPTURE them all!",
+            mood:"excited", voice:"The last shell landed next to an empty pit. Look at the pit after the empty one. You capture all the shells there!", action:"next" },
+          // 7: Capture result
+          { title:"Step 4 — You captured!",
+            line:"✨ You just took 3 shells from pit 7! Those go to YOUR score. This is how you win — capture more shells than your opponent.",
+            mood:"celebrate", voice:"You just took 3 shells! Those go to your score. Capture more shells than your opponent to win.", action:"next" },
+          // 8: Forbidden pits
+          { title:"Step 5 — Forbidden pits ⛔",
+            line:"The DARK pits (centre of each row) are FORBIDDEN. You cannot start from them. Landing just before one ends your turn. Shells collect there until game end.",
+            mood:"calm", voice:"The dark pits in the centre are forbidden. You cannot start from them. Landing just before one ends your turn.", action:"next" },
+          // 9: Celebration
+          { title:"You are ready! 🎉",
+            line:"Shabash! You learned: Sow anti-clockwise → Relay when landing on a full pit → Capture across an empty pit. Now go play!",
+            mood:"celebrate", voice:"Shabash! You learned to sow, relay, and capture. Now go play!", action:"end" },
+        ];
+
+        // ── Board snapshots per step ──────────────────────────────────────────
+        const BOARDS = [
+          [3,2,4,0,3,2,2,3,0,0,0,2,0,0], // 0 welcome
+          [3,2,4,0,3,2,2,3,0,0,0,2,0,0], // 1 tap pit 6
+          [3,2,4,0,3,2,0,3,0,0,0,2,0,0], // 2 sow direction (picked up)
+          [3,2,4,0,3,2,0,3,0,0,0,2,0,1], // 3 animate start
+          [3,2,4,0,3,2,0,3,0,0,0,2,1,1], // 4 relay explanation (post-sow)
+          [3,2,4,0,3,2,0,3,0,0,0,0,1,1], // 5 relay animate start
+          [3,2,4,0,3,2,0,3,0,1,1,0,1,1], // 6 capture setup
+          [3,2,4,0,3,2,0,0,0,1,1,0,1,1], // 7 capture result
+          [3,2,4,0,3,2,0,0,0,1,1,0,1,1], // 8 forbidden pits
+          [3,2,4,0,3,2,0,0,0,1,1,0,1,1], // 9 celebrate
+        ];
+        // Pits to highlight (gold pulse)
+        const HIGHLIGHTS  = [null, 6,   null, null, 12,   11,   null, null, null, null];
+        // Relay indicator (blue)
+        const RELAY_PITS  = [null, null, null, null, 12,   11,   null, null, null, null];
+        // Capture indicator (orange)
+        const CAP_PITS    = [null, null, null, null, null, null, 7,    7,    null, null];
+        // Empty pit indicator (grey pulse) — shows the "empty" pit that triggers capture
+        const EMPTY_PITS  = [null, null, null, null, null, null, 8,    8,    null, null];
+        // Forbidden pits to highlight on step 8
+        const FORB_GLOW   = [false,false,false,false,false,false,false,false,true, false];
+
+        const TOTAL   = STEPS.length; // 10
+        const step    = tStep;
+        const stepDef = STEPS[Math.min(step, TOTAL-1)];
+        const board   = tBoard;
+        const isLast  = step >= TOTAL-1;
+
+        // ── Voiceover ─────────────────────────────────────────────────────────
+        // ── Voice selection helper (called once voices are loaded) ──────────────
+        const pickVoice = ()=>{
+          const voices = window.speechSynthesis.getVoices();
+          return voices.find(v=>
+            /samantha|karen|moira|tessa|fiona|victoria|zira|hazel|susan/i.test(v.name)
+          ) || voices.find(v=>
+            /female|woman/i.test(v.name) && /en/i.test(v.lang)
+          ) || voices.find(v=>/en-US/i.test(v.lang))
+            || voices.find(v=>/en/i.test(v.lang))
+            || voices[0]
+            || null;
+        };
+
+        // ── Chrome keep-alive: cancel() pauses speech after ~15s unless we ping ──
+        const startKeepAlive = ()=>{
+          if(keepAliveRef.current) clearInterval(keepAliveRef.current);
+          keepAliveRef.current = setInterval(()=>{
+            if(!window.speechSynthesis.speaking){
+              clearInterval(keepAliveRef.current); return;
+            }
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+          }, 10000);
+        };
+        const stopKeepAlive = ()=>{
+          if(keepAliveRef.current){ clearInterval(keepAliveRef.current); keepAliveRef.current=null; }
+        };
+
+        const speak = React.useCallback((text)=>{
+          if(muted || !window.speechSynthesis) return;
+          // Bug fix 1: getVoices() returns [] on first call in Chrome — voices load async.
+          // If not ready yet, wait for voiceschanged then retry.
+          const doSpeak = ()=>{
+            window.speechSynthesis.cancel();
+            stopKeepAlive();
+            const utt = new SpeechSynthesisUtterance(text);
+            const v = pickVoice();
+            if(v) utt.voice = v;
+            utt.rate  = 0.88;
+            utt.pitch = 1.05;
+            utt.onstart = ()=>{ setSpeaking(true); startKeepAlive(); };
+            utt.onend   = ()=>{ setSpeaking(false); stopKeepAlive(); };
+            utt.onerror = (e)=>{
+              setSpeaking(false); stopKeepAlive();
+              // Bug fix 2: "interrupted" fires when we cancel before speaking — ignore it.
+              if(e.error === "interrupted" || e.error === "canceled") return;
+              console.warn("TTS error:", e.error);
+              // Safari fix: first speak() after page load may fail with "not-allowed" if
+              // the browser hasn't fully granted speech permissions yet. Retry once after
+              // a short delay — by this point the user gesture (tap) has been processed.
+              if(e.error === "not-allowed" && !utt._retried){
+                utt._retried = true;
+                setTimeout(()=>window.speechSynthesis.speak(utt), 300);
+              }
+            };
+            voiceRef.current = utt;
+            // Bug fix 3: small delay after cancel() before speak() — Chrome needs it.
+            setTimeout(()=>window.speechSynthesis.speak(utt), 50);
+          };
+
+          const voices = window.speechSynthesis.getVoices();
+          if(voices.length > 0){
+            voicesReady.current = true;
+            doSpeak();
+          } else {
+            // Bug fix 4: voices not loaded yet — wait for voiceschanged event (Chrome async).
+            const onReady = ()=>{
+              window.speechSynthesis.removeEventListener("voiceschanged", onReady);
+              voicesReady.current = true;
+              doSpeak();
+            };
+            window.speechSynthesis.addEventListener("voiceschanged", onReady);
+            // Fallback: if voiceschanged never fires (Firefox/Safari), speak without a voice
+            setTimeout(()=>{
+              if(!voicesReady.current){ voicesReady.current=true; doSpeak(); }
+            }, 500);
+          }
+        },[muted]);
+
+        const stopSpeech = ()=>{
+          if(window.speechSynthesis){ window.speechSynthesis.cancel(); }
+          stopKeepAlive();
+          setSpeaking(false);
+        };
+
+        // ── Animated seed travel ──────────────────────────────────────────────
+        const runAnimation = React.useCallback((frames, finalBoard, onDone)=>{
+          setFlying(true);
+          let i = 0;
+          const tick = ()=>{
+            if(i >= frames.length){ setAnimPit(null); setFlying(false); setTBoard(finalBoard); onDone(); return; }
+            const {pit, from} = frames[i];
+            setTBoard([...from]);
+            setAnimPit(pit);
+            i++;
+            autoRef.current = setTimeout(tick, 420);
+          };
+          tick();
+        },[]);
+
+        // ── Advance step ──────────────────────────────────────────────────────
+        const goStep = React.useCallback((n)=>{
+          const ns = Math.min(n, TOTAL-1);
+          setTStep(ns);
+          setLitPit(HIGHLIGHTS[ns]);
+          setRelayPit(RELAY_PITS[ns]);
+          setCapPit(CAP_PITS[ns]);
+          setEmptyPit(EMPTY_PITS[ns]);
+          setForbGlow(FORB_GLOW[ns]);
+          setAnimPit(null);
+          setWaitTap(false);
+          const sd = STEPS[ns];
+          setPaattiMood(sd.mood);
+          // speak after tiny delay so state settles
+          setTimeout(()=>speak(sd.voice), 80);
+          setAnimDone(false);
+          // handle action
+          if(sd.action === "tap") { setWaitTap(true); setTBoard(BOARDS[ns]); }
+          else if(sd.action === "animate") {
+            setTBoard(BOARDS[ns]);
+            setTimeout(()=>{
+              runAnimation(sd.animate, BOARDS[ns+1] || BOARDS[ns], ()=>{
+                setTBoard(BOARDS[ns+1] || BOARDS[ns]);
+                if(RELAY_PITS[ns+1]!=null){ setRelayPit(RELAY_PITS[ns+1]); }
+                if(CAP_PITS[ns+1]!=null)  { setCapPit(CAP_PITS[ns+1]); }
+                // ← unlock Next button once animation finishes
+                setAnimDone(true);
+              });
+            }, 400);
+          }
+          else { setTBoard(BOARDS[ns]); }
+        },[speak, runAnimation]);
+
+        // on mount — pre-warm voices BEFORE step 0 fires so Chrome's async load is
+        // caught by a listener that is already registered.  getVoices() on its own
+        // returns [] on first call in Chrome; the voiceschanged event may fire almost
+        // immediately after — attaching the listener here (not lazily inside speak())
+        // ensures we never miss it.
+        React.useEffect(()=>{
+          if(!window.speechSynthesis) return;
+          // Trigger the async voice load
+          window.speechSynthesis.getVoices();
+          const onVC = ()=>{ voicesReady.current = true; };
+          window.speechSynthesis.addEventListener("voiceschanged", onVC);
+          // If voices were already loaded (page reload / non-Chrome), mark ready now
+          if(window.speechSynthesis.getVoices().length > 0) voicesReady.current = true;
+          return ()=>{ window.speechSynthesis.removeEventListener("voiceschanged", onVC); };
+        },[]);
+        // Safari fix: speech synthesis requires a user gesture before it will play.
+        // We gate goStep(0) behind tutStarted, which is set by the "Start Tutorial" button.
+        // This ensures the very first speak() call happens inside a user-gesture callback.
+        React.useEffect(()=>{
+          if(!tutStarted) return;
+          goStep(0);
+          return ()=>{
+            stopSpeech();
+            stopKeepAlive();
+            if(autoRef.current) clearTimeout(autoRef.current);
+          };
+        },[tutStarted]);
+
+        const nextStep = ()=>{ stopSpeech(); if(autoRef.current) clearTimeout(autoRef.current); goStep(step+1); };
+        const closeTut = ()=>{ stopSpeech(); if(autoRef.current) clearTimeout(autoRef.current); setShowTutorial(false); setTutStep(0); };
+
+        const onPitTap = (idx)=>{
+          if(!waitTap) return;
+          if(idx === stepDef.tapPit){ setWaitTap(false); stopSpeech(); if(autoRef.current) clearTimeout(autoRef.current); goStep(step+1); }
+          else { speak("That is not the right pit. Tap the glowing one!"); }
+        };
+
+        // ── Paatti face ───────────────────────────────────────────────────────
+        const moodEmoji = paattiMood==="celebrate" ? "🎉" : paattiMood==="excited" ? "😮" : "🙂";
+        const faceAnim  = speaking ? "introPulse 0.4s ease-in-out infinite" : "none";
+
+        // ── Render pit ────────────────────────────────────────────────────────
+        const TutPit = ({idx, count, isForb})=>{
+          const isHL  = litPit===idx && !flying;
+          const isRel = relayPit===idx;
+          const isCap = capPit===idx;
+          const isAnim= animPit===idx;
+          const glow  = isAnim ? "0 0 0 4px #ffffff, 0 0 20px rgba(255,255,200,0.9)"
+                      : isHL   ? "0 0 0 3px #ffe040, 0 0 18px rgba(255,220,40,0.85)"
+                      : isRel  ? "0 0 0 3px #60b0ff, 0 0 16px rgba(80,160,255,0.8)"
+                      : isCap  ? "0 0 0 3px #ff7020, 0 0 16px rgba(255,100,20,0.8)"
+                      : "none";
+          const bg    = isForb ? "rgba(50,18,0,0.8)"
+                      : isHL   ? "rgba(70,50,0,0.95)"
+                      : isAnim ? "rgba(60,60,20,0.95)"
+                      : "rgba(4,28,18,0.9)";
+          const bdr   = isAnim ? "2px solid #ffffff"
+                      : isHL   ? "2px solid #ffe040"
+                      : isRel  ? "2px solid #60b0ff"
+                      : isCap  ? "2px solid #ff7020"
+                      : isForb ? "1px solid rgba(90,35,0,0.5)"
+                      : "1px solid rgba(30,110,70,0.4)";
+          const clr   = isForb ? "#5a2808"
+                      : isHL   ? "#ffe040"
+                      : isAnim ? "#ffffff"
+                      : isRel  ? "#60b0ff"
+                      : isCap  ? "#ff7020"
+                      : "#70c090";
+          const anim  = isHL   ? "introPulse 1.1s ease-in-out infinite"
+                      : isAnim ? "introPulse 0.25s ease-in-out infinite"
+                      : "none";
+          return (
+            <div onClick={()=>onPitTap(idx)} style={{
+              width:46,height:46,borderRadius:"50%",
+              background:bg,border:bdr,boxShadow:glow,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              cursor:(isHL&&waitTap)?"pointer":"default",
+              transition:"all 0.28s",position:"relative",animation:anim,
+            }}>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:15,color:clr,fontWeight:"bold",
+                transition:"all 0.28s"}}>{count}</span>
+              {isHL && waitTap && (
+                <div style={{position:"absolute",top:-24,left:"50%",transform:"translateX(-50%)",
+                  fontSize:16,animation:"introPulse 0.7s ease-in-out infinite"}}>👆</div>
+              )}
+              {isAnim && (
+                <div style={{position:"absolute",top:-18,left:"50%",transform:"translateX(-50%)",
+                  fontSize:12,animation:"introPulse 0.25s ease-in-out infinite"}}>🐚</div>
+              )}
+              {isRel && (
+                <div style={{position:"absolute",top:-20,left:"50%",transform:"translateX(-50%)",
+                  fontSize:13}}>⚡</div>
+              )}
+              {isCap && (
+                <div style={{position:"absolute",top:-20,left:"50%",transform:"translateX(-50%)",
+                  fontSize:13}}>✨</div>
+              )}
+            </div>
+          );
+        };
+
+        const p2row = [7,8,9,10,11,12,13];
+        const p1row = [0,1,2,3,4,5,6];
+
+        // TutPit now also handles emptyPit (grey pulse) and forbGlow (red pulse)
+        const TutPitFull = ({idx,count,isForb})=>{
+          const isHL    = litPit===idx && !flying;
+          const isRel   = relayPit===idx;
+          const isCap   = capPit===idx;
+          const isAnim  = animPit===idx;
+          const isEmpty = emptyPit===idx;
+          const isFG    = forbGlow && isForb;
+          const glow = isAnim  ? "0 0 0 4px #fff,  0 0 20px rgba(255,255,200,0.9)"
+                     : isHL    ? "0 0 0 3px #ffe040,0 0 18px rgba(255,220,40,0.9)"
+                     : isRel   ? "0 0 0 3px #60b0ff,0 0 16px rgba(80,160,255,0.8)"
+                     : isCap   ? "0 0 0 3px #ff7020,0 0 16px rgba(255,100,20,0.8)"
+                     : isEmpty ? "0 0 0 3px #888,   0 0 12px rgba(160,160,160,0.6)"
+                     : isFG    ? "0 0 0 3px #ff4040,0 0 14px rgba(255,50,50,0.7)"
+                     : "none";
+          const bg = isForb ? "rgba(50,18,0,0.85)"
+                   : isHL   ? "rgba(70,55,0,0.95)"
+                   : isAnim ? "rgba(60,60,20,0.95)"
+                   : isEmpty? "rgba(20,20,20,0.9)"
+                   : "rgba(4,28,18,0.9)";
+          const bdr= isAnim  ? "2px solid #fff"
+                   : isHL    ? "2px solid #ffe040"
+                   : isRel   ? "2px solid #60b0ff"
+                   : isCap   ? "2px solid #ff7020"
+                   : isEmpty ? "2px dashed #888"
+                   : isFG    ? "2px solid #ff4040"
+                   : isForb  ? "1px solid rgba(90,35,0,0.5)"
+                   : "1px solid rgba(30,110,70,0.4)";
+          const clr= isForb  ? (isFG?"#ff6060":"#5a2808")
+                   : isHL    ? "#ffe040"
+                   : isAnim  ? "#ffffff"
+                   : isRel   ? "#60b0ff"
+                   : isCap   ? "#ff7020"
+                   : isEmpty ? "#666"
+                   : "#70c090";
+          const anim= isHL   ? "introPulse 1.1s ease-in-out infinite"
+                    : isAnim ? "introPulse 0.25s ease-in-out infinite"
+                    : isFG   ? "introPulse 0.8s ease-in-out infinite"
+                    : "none";
+          return (
+            <div onClick={()=>onPitTap(idx)} style={{
+              width:44,height:44,borderRadius:"50%",
+              background:bg,border:bdr,boxShadow:glow,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              cursor:(isHL&&waitTap)?"pointer":"default",
+              transition:"all 0.28s",position:"relative",animation:anim,
+            }}>
+              <span style={{fontFamily:"Cinzel,serif",fontSize:14,color:clr,fontWeight:"bold",
+                transition:"all 0.28s"}}>{count}</span>
+              {isHL&&waitTap&&<div style={{position:"absolute",top:-22,left:"50%",
+                transform:"translateX(-50%)",fontSize:14,
+                animation:"introPulse 0.7s ease-in-out infinite"}}>👆</div>}
+              {isAnim&&<div style={{position:"absolute",top:-16,left:"50%",
+                transform:"translateX(-50%)",fontSize:11,
+                animation:"introPulse 0.25s ease-in-out infinite"}}>🐚</div>}
+              {isRel&&!isAnim&&<div style={{position:"absolute",top:-18,left:"50%",
+                transform:"translateX(-50%)",fontSize:12}}>⚡</div>}
+              {isCap&&<div style={{position:"absolute",top:-18,left:"50%",
+                transform:"translateX(-50%)",fontSize:12}}>✨</div>}
+              {isEmpty&&<div style={{position:"absolute",top:-18,left:"50%",
+                transform:"translateX(-50%)",fontSize:11,color:"#888"}}>∅</div>}
+              {isFG&&<div style={{position:"absolute",top:-18,left:"50%",
+                transform:"translateX(-50%)",fontSize:12}}>⛔</div>}
+            </div>
+          );
+        };
+
+        return (
+          <div style={{
+            position:"fixed",inset:0,zIndex:9999,
+            background:"rgba(1,5,3,0.98)",
+            display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"flex-start",
+            padding:"10px 14px 16px",
+            overflowY:"auto",WebkitOverflowScrolling:"touch",
+            animation:"introFadeIn 0.35s ease both",
+          }}>
+
+            {/* ── Safari speech gate: show start screen until user taps ── */}
+            {!tutStarted && (
+              <div style={{
+                position:"absolute",inset:0,zIndex:10,
+                background:"rgba(1,5,3,0.98)",
+                display:"flex",flexDirection:"column",
+                alignItems:"center",justifyContent:"center",
+                gap:20,padding:24,
+              }}>
+                <div style={{fontSize:48}}>🙂</div>
+                <div style={{fontFamily:"Cinzel,serif",fontSize:18,color:"#c8a040",
+                  letterSpacing:2,textAlign:"center"}}>
+                  பல்லாங்குழி Tutorial
+                </div>
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:15,
+                  color:"rgba(200,200,180,0.8)",textAlign:"center",maxWidth:280,lineHeight:1.6}}>
+                  Paatti will guide you through the rules with voice narration.
+                </div>
+                <button onClick={()=>setTutStarted(true)} style={{
+                  marginTop:8,padding:"12px 32px",
+                  background:"linear-gradient(135deg,#7a4f10,#c8a040)",
+                  border:"none",borderRadius:8,
+                  fontFamily:"Cinzel,serif",fontSize:15,fontWeight:700,
+                  color:"#fff",cursor:"pointer",letterSpacing:1,
+                  boxShadow:"0 0 20px rgba(200,160,64,0.4)",
+                }}>▶ Start Tutorial</button>
+                <button onClick={closeTut} style={{
+                  background:"transparent",border:"1px solid rgba(200,160,64,0.3)",
+                  borderRadius:6,padding:"6px 18px",
+                  fontFamily:"Crimson Text,serif",fontSize:13,
+                  color:"rgba(200,160,64,0.6)",cursor:"pointer",
+                }}>Skip</button>
+              </div>
+            )}
+
+            {/* ── Header: step counter + mute + skip ── */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+              width:"100%",maxWidth:380,marginBottom:8,flexShrink:0}}>
+              <div style={{fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:3,
+                color:"rgba(200,160,64,0.65)"}}>
+                STEP {step+1} / {TOTAL}
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <button onClick={()=>setMuted(m=>!m)} style={{
+                  background:"transparent",border:"none",cursor:"pointer",
+                  fontSize:16,opacity:muted?0.4:0.75,padding:"2px 4px",lineHeight:1,
+                }} title={muted?"Unmute":"Mute"}>{muted?"🔇":"🔊"}</button>
+                <button onClick={closeTut} style={{
+                  background:"rgba(20,40,30,0.8)",
+                  border:"1px solid rgba(80,120,90,0.4)",
+                  borderRadius:20,cursor:"pointer",padding:"5px 14px",
+                  fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,
+                  color:"rgba(140,180,150,0.8)",
+                }}>✕ SKIP</button>
+              </div>
+            </div>
+
+            {/* ── Step title ── */}
+            <div style={{
+              width:"100%",maxWidth:380,marginBottom:6,flexShrink:0,
+              fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:2,
+              color:"#c8a040",textAlign:"center",
+            }}>{stepDef.title}</div>
+
+            {/* ── Paatti + speech bubble ── */}
+            <div style={{display:"flex",alignItems:"flex-start",gap:10,
+              width:"100%",maxWidth:380,marginBottom:10,flexShrink:0}}>
+              {/* Avatar col */}
+              <div style={{flexShrink:0,display:"flex",flexDirection:"column",
+                alignItems:"center",gap:2,paddingTop:4}}>
+                <div style={{
+                  fontSize:34,lineHeight:1,
+                  filter:paattiMood==="celebrate"?"drop-shadow(0 0 8px rgba(255,200,40,0.9))":
+                         paattiMood==="excited"  ?"drop-shadow(0 0 6px rgba(100,200,255,0.8))":"none",
+                  transition:"filter 0.4s",
+                }}>👵🏽</div>
+                <div style={{fontSize:9,fontFamily:"Crimson Text,serif",
+                  color:"rgba(200,160,64,0.6)",fontStyle:"italic"}}>Paatti</div>
+                {/* audio bars */}
+                <div style={{display:"flex",gap:2,alignItems:"flex-end",height:10,marginTop:2}}>
+                  {[0,1,2].map(i=>(
+                    <div key={i} style={{
+                      width:3,borderRadius:2,
+                      background:speaking?"#c8a040":"rgba(100,80,30,0.3)",
+                      height:speaking?[5,9,6][i]:3,
+                      animation:speaking?`introPulse ${0.28+i*0.09}s ease-in-out infinite`:"none",
+                      transition:"height 0.15s,background 0.2s",
+                    }}/>
+                  ))}
+                </div>
+              </div>
+              {/* Bubble */}
+              <div style={{
+                flex:1,
+                background:"linear-gradient(135deg,rgba(5,32,20,0.98),rgba(2,12,8,0.99))",
+                border:`1.5px solid ${
+                  paattiMood==="celebrate"?"rgba(220,180,40,0.85)":
+                  paattiMood==="excited"  ?"rgba(70,160,255,0.65)":
+                                           "rgba(130,85,18,0.55)"}`,
+                borderRadius:"4px 14px 14px 14px",
+                padding:"10px 13px",
+                boxShadow:"0 4px 18px rgba(0,0,0,0.65)",
+                transition:"border-color 0.4s",
+              }}>
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:14,
+                  color:"#d8eed8",lineHeight:1.6}}>
+                  {stepDef.line}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Board ── */}
+            <div style={{
+              background:"linear-gradient(160deg,rgba(3,18,11,0.99),rgba(1,7,4,0.99))",
+              border:"1.5px solid rgba(65,40,8,0.7)",
+              borderRadius:18,padding:"12px 8px 10px",
+              boxShadow:"0 8px 36px rgba(0,0,0,0.85)",
+              marginBottom:10,width:"100%",maxWidth:380,flexShrink:0,
+            }}>
+              {/* Opponent label */}
+              <div style={{textAlign:"center",marginBottom:5}}>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:9,letterSpacing:2,
+                  color:"rgba(160,100,40,0.7)"}}>⬆ OPPONENT</span>
+              </div>
+              {/* P2 row */}
+              <div style={{display:"flex",gap:5,justifyContent:"center",marginBottom:6}}>
+                {p2row.map(i=><TutPitFull key={i} idx={i} count={board[i]} isForb={i===10}/>)}
+              </div>
+              {/* Direction arrow */}
+              <div style={{textAlign:"center",margin:"4px 0",fontSize:13,
+                color:"rgba(100,180,130,0.6)",letterSpacing:2}}>
+                ↺ anti-clockwise
+              </div>
+              {/* P1 row */}
+              <div style={{display:"flex",gap:5,justifyContent:"center",marginTop:6}}>
+                {p1row.map(i=><TutPitFull key={i} idx={i} count={board[i]} isForb={i===3}/>)}
+              </div>
+              {/* Your pits label */}
+              <div style={{textAlign:"center",marginTop:5}}>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:9,letterSpacing:2,
+                  color:"rgba(60,180,110,0.8)"}}>YOUR PITS ⬇</span>
+              </div>
+            </div>
+
+            {/* ── Legend: colour key ── */}
+            <div style={{display:"flex",gap:10,justifyContent:"center",
+              flexWrap:"wrap",marginBottom:8,width:"100%",maxWidth:380,flexShrink:0}}>
+              {[
+                {col:"#ffe040",label:"Tap this"},
+                {col:"#60b0ff",label:"Relay ⚡"},
+                {col:"#ff7020",label:"Capture ✨"},
+                {col:"#888",   label:"Empty ∅"},
+                {col:"#ff4040",label:"Forbidden ⛔"},
+              ].map(({col,label})=>(
+                <div key={label} style={{display:"flex",alignItems:"center",gap:4}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:col,flexShrink:0}}/>
+                  <span style={{fontFamily:"Crimson Text,serif",fontSize:10,color:"rgba(180,200,180,0.6)"}}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Action row ── */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",
+              gap:12,marginBottom:8,flexShrink:0}}>
+              {waitTap ? (
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:14,
+                  color:"#ffe040",fontStyle:"italic",
+                  animation:"introPulse 1.2s ease-in-out infinite"}}>
+                  👆 Tap the glowing pit to continue
+                </div>
+              ) : (stepDef.action==="animate" && flying && !animDone) ? (
+                <div style={{fontFamily:"Crimson Text,serif",fontSize:13,
+                  color:"#80d0a0",fontStyle:"italic"}}>
+                  🐚 Watching seeds travel...
+                </div>
+              ) : isLast ? (
+                <button onClick={closeTut} style={{
+                  padding:"13px 48px",borderRadius:30,cursor:"pointer",
+                  fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:4,color:"#ffe040",
+                  background:"linear-gradient(135deg,rgba(50,28,0,0.96),rgba(26,13,0,0.98))",
+                  border:"1.5px solid rgba(220,160,20,0.85)",
+                  boxShadow:"0 4px 22px rgba(0,0,0,0.7),0 0 18px rgba(200,130,8,0.3)",
+                  transition:"all 0.22s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.color="#fff080";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#ffe040";}}
+                >🎮 Let's Play!</button>
+              ) : (
+                <button onClick={nextStep} style={{
+                  padding:"12px 40px",borderRadius:30,cursor:"pointer",
+                  fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,color:"#c8a040",
+                  background:"linear-gradient(135deg,rgba(4,38,24,0.96),rgba(2,18,12,0.98))",
+                  border:"1.5px solid rgba(150,85,10,0.7)",
+                  boxShadow:"0 4px 18px rgba(0,0,0,0.6)",
+                  transition:"all 0.22s",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";}}
+                >Next →</button>
+              )}
+            </div>
+
+            {/* ── Progress dots ── */}
+            <div style={{display:"flex",gap:5,flexShrink:0}}>
+              {STEPS.map((_,i)=>(
+                <div key={i} style={{
+                  width:i===step?16:6,height:6,borderRadius:3,
+                  background:i===step?"#c8a040":i<step?"rgba(200,160,64,0.5)":"rgba(55,55,55,0.6)",
+                  transition:"all 0.3s",
+                }}/>
+              ))}
+            </div>
+
+          </div>
+        );
+      })}
+
       {introStep === 1 && (
         <div style={{
           position:"fixed",inset:0,zIndex:1000,
@@ -2917,34 +3794,52 @@ function Pallankuzhi() {
                 </div>
               ))}
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:16,marginTop:12,animation:"introFadeIn 0.6s 0.35s both",position:"relative",zIndex:1}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,marginTop:12,animation:"introFadeIn 0.6s 0.35s both",position:"relative",zIndex:1}}>
+              {/* Tutorial CTA — prominent, above the Play button */}
               <button
-                onClick={()=>{sfx.pageBack();setIntroStep(0);}}
+                onClick={()=>{ sfx.btnClick(); setTutStep(0); setShowTutorial(true); }}
                 style={{
-                  padding:"12px 28px",borderRadius:30,
-                  fontFamily:"Cinzel,serif",fontSize:13,letterSpacing:3,textTransform:"uppercase",
-                  color:"#80c0a0",cursor:"pointer",
-                  background:"rgba(3,22,16,0.65)",
-                  border:"1.5px solid rgba(80,40,8,0.5)",
+                  padding:"14px 44px",borderRadius:30,
+                  fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:3,textTransform:"uppercase",
+                  color:"#ffe040",cursor:"pointer",
+                  background:"linear-gradient(135deg,rgba(60,30,0,0.9),rgba(30,15,0,0.95))",
+                  border:"1.5px solid rgba(220,160,20,0.7)",
+                  boxShadow:"0 4px 24px rgba(0,0,0,0.6), 0 0 18px rgba(200,140,10,0.2)",
                   transition:"all 0.22s",
+                  width:"100%", maxWidth:280,
                 }}
-                onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.6)";}}
-                onMouseLeave={e=>{e.currentTarget.style.color="#6a4010";e.currentTarget.style.borderColor="rgba(30,140,100,0.5)";}}
-              >← Back</button>
-              <button
-                onClick={()=>{sfx.pageNext();setIntroStep(2);}}
-                style={{
-                  padding:"16px 52px",borderRadius:30,
-                  fontFamily:"Cinzel,serif",fontSize:16,letterSpacing:4,textTransform:"uppercase",
-                  color:"#c8a040",cursor:"pointer",
-                  background:"linear-gradient(135deg,rgba(4,42,28,0.96),rgba(4,24,17,0.98))",
-                  border:"1.5px solid rgba(160,90,10,0.7)",
-                  boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",
-                  transition:"all 0.25s",
-                }}
-                onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(240,192,64,0.85)";e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.8),0 0 24px rgba(200,130,10,0.3)";}}
-                onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)";}}
-              >▶ Play</button>
+                onMouseEnter={e=>{e.currentTarget.style.color="#fff080";e.currentTarget.style.borderColor="rgba(255,200,40,0.9)";e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.7), 0 0 22px rgba(220,160,10,0.35)";}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#ffe040";e.currentTarget.style.borderColor="rgba(220,160,20,0.7)";e.currentTarget.style.boxShadow="0 4px 24px rgba(0,0,0,0.6), 0 0 18px rgba(200,140,10,0.2)";}}
+              >🎓 Try Interactive Tutorial</button>
+              <div style={{display:"flex",alignItems:"center",gap:16,width:"100%",maxWidth:280,justifyContent:"space-between"}}>
+                <button
+                  onClick={()=>{sfx.pageBack();setIntroStep(0);}}
+                  style={{
+                    padding:"12px 24px",borderRadius:30,
+                    fontFamily:"Cinzel,serif",fontSize:12,letterSpacing:3,textTransform:"uppercase",
+                    color:"#80c0a0",cursor:"pointer",
+                    background:"rgba(3,22,16,0.65)",
+                    border:"1.5px solid rgba(80,40,8,0.5)",
+                    transition:"all 0.22s",
+                  }}
+                  onMouseEnter={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.6)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.color="#80c0a0";e.currentTarget.style.borderColor="rgba(80,40,8,0.5)";}}
+                >← Back</button>
+                <button
+                  onClick={()=>{sfx.pageNext();setIntroStep(2);}}
+                  style={{
+                    padding:"12px 32px",borderRadius:30,
+                    fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:4,textTransform:"uppercase",
+                    color:"#c8a040",cursor:"pointer",
+                    background:"linear-gradient(135deg,rgba(4,42,28,0.96),rgba(4,24,17,0.98))",
+                    border:"1.5px solid rgba(160,90,10,0.7)",
+                    boxShadow:"0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)",
+                    transition:"all 0.25s",
+                  }}
+                  onMouseEnter={e=>{e.currentTarget.style.color="#ffe060";e.currentTarget.style.borderColor="rgba(240,192,64,0.85)";e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.8),0 0 24px rgba(200,130,10,0.3)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.color="#c8a040";e.currentTarget.style.borderColor="rgba(160,90,10,0.7)";e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.7),0 0 20px rgba(160,100,8,0.15)";}}
+                >▶ Play</button>
+              </div>
             </div>
           </div>
           <div style={{flexShrink:0,pointerEvents:"none"}}>
@@ -3005,17 +3900,20 @@ function Pallankuzhi() {
                   <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#a8cca0",fontStyle:"italic",lineHeight:1.4}}>Challenge the machine in an ancient battle of strategy</div>
                 </div>
                 <div
-                  onClick={e=>{e.stopPropagation();sfx.btnClick();setAiDifficulty(d=>d==="easy"?"hard":"easy");}}
+                  onClick={e=>{
+                    e.stopPropagation(); sfx.btnClick();
+                    setAiDifficulty(d=>d==="easy"?"medium":d==="medium"?"hard":"easy");
+                  }}
                   style={{
                     padding:"6px 12px",borderRadius:20,cursor:"pointer",flexShrink:0,
-                    background:aiDifficulty==="hard"?"rgba(200,40,40,0.25)":"rgba(40,160,80,0.2)",
-                    border:aiDifficulty==="hard"?"1px solid rgba(220,80,60,0.6)":"1px solid rgba(60,200,100,0.5)",
+                    background:aiDifficulty==="hard"?"rgba(200,40,40,0.25)":aiDifficulty==="medium"?"rgba(200,140,20,0.22)":"rgba(40,160,80,0.2)",
+                    border:aiDifficulty==="hard"?"1px solid rgba(220,80,60,0.6)":aiDifficulty==="medium"?"1px solid rgba(220,160,40,0.6)":"1px solid rgba(60,200,100,0.5)",
                     fontFamily:"Cinzel,serif",fontSize:10,letterSpacing:2,
-                    color:aiDifficulty==="hard"?"#ff8060":"#60e090",
+                    color:aiDifficulty==="hard"?"#ff8060":aiDifficulty==="medium"?"#ffc040":"#60e090",
                     transition:"all 0.2s",
                   }}
-                  title="Toggle AI difficulty"
-                >{aiDifficulty==="hard"?"HARD":"EASY"}</div>
+                  title="Cycle AI difficulty: Easy → Medium → Hard"
+                >{aiDifficulty==="hard"?"HARD":aiDifficulty==="medium"?"MEDIUM":"EASY"}</div>
               </button>
               <button
                 onClick={()=>{sfx.modeSelect();setGameMode("pvp");setMsg("Player 1 — pick a pit in your column (left)");setIntroStep(3);}}
@@ -3106,6 +4004,23 @@ function Pallankuzhi() {
             {/* MATCHMAKING — pick shell count */}
             {onlineStep==="matchmaking_sc" && (
               <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320,position:"relative",zIndex:1}}>
+                {/* Queue visibility — show before player picks shells */}
+                <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:4}}>
+                  {matchPlayers>0 && (
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#8040a0",fontStyle:"italic"}}>
+                      🌐 {matchPlayers} online
+                    </div>
+                  )}
+                  {waitingCount>0 ? (
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#c060f0",fontStyle:"italic"}}>
+                      ⏳ {waitingCount} waiting
+                    </div>
+                  ) : (
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#6a2090",fontStyle:"italic"}}>
+                      No queue — you'd go first
+                    </div>
+                  )}
+                </div>
                 {[{count:6,label:"6 Shells",emoji:"🐚",col:"#c8a040"},{count:12,label:"12 Shells",emoji:"👑",col:"#c060e0"},{count:24,label:"24 Shells",emoji:"🌊",col:"#80b0ff"}].map(({count,label,emoji,col})=>(
                   <button key={count}
                     disabled={onlineStep==="searching"}
@@ -3130,7 +4045,23 @@ function Pallankuzhi() {
                 <div style={{fontSize:64,animation:"introPulse 1.5s ease-in-out infinite"}}>🌍</div>
                 <div style={{fontFamily:"Cinzel,serif",fontSize:18,letterSpacing:4,color:"#d060ff",textAlign:"center"}}>FINDING OPPONENT</div>
                 <div style={{fontFamily:"Crimson Text,serif",fontSize:14,color:"#6a2090",fontStyle:"italic",textAlign:"center",maxWidth:260}}>{onlineStatus}</div>
-                {matchPlayers>0 && <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#8040a0",fontStyle:"italic"}}>🌐 {matchPlayers} players online</div>}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  {matchPlayers>0 && (
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#8040a0",fontStyle:"italic"}}>
+                      🌐 {matchPlayers} player{matchPlayers!==1?"s":""} online
+                    </div>
+                  )}
+                  {waitingCount>0 && (
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:13,color:"#c060f0",fontStyle:"italic"}}>
+                      ⏳ {waitingCount} player{waitingCount!==1?"s":""} in queue
+                    </div>
+                  )}
+                  {waitingCount===0 && matchPlayers>0 && (
+                    <div style={{fontFamily:"Crimson Text,serif",fontSize:12,color:"#6a2090",fontStyle:"italic"}}>
+                      No one in queue yet — you'll be first!
+                    </div>
+                  )}
+                </div>
                 <div style={{display:"flex",gap:10,marginTop:4}}>
                   {[0,1,2,3].map(i=>(
                     <div key={i} style={{width:10,height:10,borderRadius:"50%",background:"#d060ff",opacity:0.8,animation:`pulse ${0.8+i*0.2}s ease-in-out infinite`}}/>
@@ -3836,9 +4767,13 @@ function Pallankuzhi() {
                 // Local side loses
                 const b = board; const s = scores;
                 const totalShells = b.reduce((a,v)=>a+v,0);
+                // Fix: in PvP the resigning player is whoever's turn it currently is.
+                // Shells go to the winner (the other player), not always to scores[1].
                 const finalScores = gameMode==="pvp"
-                  ? [s[0], s[1]+totalShells]   // P2 wins
-                  : [s[0], s[1]+totalShells];   // opponent/AI wins
+                  ? (turn===0
+                      ? [s[0], s[1]+totalShells]   // P1 resigned → P2 gets shells
+                      : [s[0]+totalShells, s[1]])   // P2 resigned → P1 gets shells
+                  : [s[0], s[1]+totalShells];        // online/AI — opponent gets shells
                 setBoard(Array(14).fill(0));
                 setScores(finalScores);
                 setOver(true);
@@ -4360,7 +5295,7 @@ function Pallankuzhi() {
               WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
               filter:"drop-shadow(0 2px 12px rgba(0,0,0,0.8))",
             }}>
-              {result==="win"?(gameMode==="pvp"?"Player 1 Wins!":"You Win!"):result==="lose"?(gameMode==="pvp"?"Player 2 Wins!":(gameMode==="online"||gameMode==="matchmaking")?"Opponent Wins!":"AI Wins!"):result==="waiting"?"Rematch Requested":"It's a Draw!"}
+              {result==="win"?(gameMode==="pvp"?"Player 1 Wins!":"You Win!"):result==="lose"?(gameMode==="pvp"?(scores[0]>=scores[1]?"Player 1 Wins!":"Player 2 Wins!"):(gameMode==="online"||gameMode==="matchmaking")?"Opponent Wins!":"AI Wins!"):result==="waiting"?"Rematch Requested":"It's a Draw!"}
             </div>
             <div style={{
               fontFamily:"Crimson Text,serif",fontSize:18,
@@ -4376,11 +5311,11 @@ function Pallankuzhi() {
               {(()=>{
                 const io=gameMode==="online"||gameMode==="matchmaking";
                 if(result==="win") return gameMode==="pvp"?"Player 1 claims the cowries!":io?"You claimed the cowries!":"The cowries have spoken in your favour.";
-                if(result==="lose") return gameMode==="pvp"?"Player 2 claims the cowries!":io?"Your opponent claimed the cowries!":"The AI has mastered the ancient art.";
+                if(result==="lose") return gameMode==="pvp"?(scores[0]>=scores[1]?"Player 1 claims the cowries!":"Player 2 claims the cowries!"):io?"Your opponent claimed the cowries!":"The AI has mastered the ancient art.";
                 return "A perfectly balanced game.";
               })()}
             </div>
-            {fbUser&&gameMode!=="pvp"&&(result==="win"||result==="lose"||result==="draw")&&(
+            {fbUser&&gameMode!=="pvp"&&(result==="win"||result==="lose"||result==="draw")&&lastCoinReward.coins>0&&(
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 16px",borderRadius:20,background:"rgba(255,200,40,0.1)",border:"1px solid rgba(200,160,30,0.4)"}}>
                   <span style={{fontSize:16}}>🪙</span>
