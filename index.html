@@ -63,9 +63,13 @@
     //   (a) Firebase Security Rules restricting database read/write per user,
     //   (b) App Check (reCAPTCHA v3) preventing automated abuse, and
     //   (c) Domain restrictions on the apiKey in Google Cloud Console.
-    // ACTION REQUIRED: Ensure your Firebase Realtime Database rules are locked down
-    // (not "allow read, write: if true") and App Check enforcement is enabled in the
-    // Firebase console before going to production.
+    //
+    // ACTION REQUIRED before production:
+    //   1. Firebase Console → Realtime Database → Rules → ensure rules are NOT
+    //      "allow read, write: if true" — lock them to authenticated users only.
+    //      Minimum safe rules:
+    //        { "rules": { "users": { "$uid": { ".read": "$uid === auth.uid", ".write": "$uid === auth.uid" } }, "matchmaking": { ".read": "auth !== null", ".write": "auth !== null" } } }
+    //   2. Enable App Check enforcement in Firebase Console → App Check.
     firebase.initializeApp({
       apiKey: "AIzaSyDUy1qivPJj7Eq45-C_3sanePJI99YXH6s",
       authDomain: 'pallankuzhi-53823.firebaseapp.com',
@@ -102,17 +106,7 @@
     window._fbdb = firebase.database();
     window._fbauth = firebase.auth();
     window._fbuser = null;
-    // Handle redirect result on page load
-    window._fbRedirectDone = false;
     window._fbauth.useDeviceLanguage();
-    // Check redirect result FIRST before onAuthStateChanged fires
-    window._fbauth.getRedirectResult().then(function(result) {
-      if (result && result.user) {
-        window._fbRedirectDone = true; // flag stays true until React reads it
-      }
-    }).catch(function(err) {
-      console.error('Redirect error:', err.code, err.message);
-    });
     window._fbauth.onAuthStateChanged(function(user) {
       window._fbuser = user;
       if (user) {
@@ -135,8 +129,7 @@
           }
         });
       }
-      // Pass fromRedirect flag so React knows to navigate to game
-      if (window._onAuthChange) window._onAuthChange(user, window._fbRedirectDone);
+      if (window._onAuthChange) window._onAuthChange(user, false);
     });
   </script>
 </head>
@@ -153,6 +146,68 @@
   <script type="text/babel">
 /* © 2026 Quixote Club Game. All rights reserved. Unauthorized copying, modification or distribution is prohibited. Built by the original developer. */
 const { useState, useEffect, useRef, useCallback } = React;
+
+/* ── ERROR BOUNDARY ────────────────────────────────────────────────────────────
+   Catches any unhandled React render error mid-game and shows a friendly
+   recovery screen instead of a blank white page.
+   Class component required — React error boundaries cannot be function components.
+   ──────────────────────────────────────────────────────────────────────────── */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[Pallankuzhi] Uncaught error:', error, info.componentStack);
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div style={{
+        height:'100vh', display:'flex', flexDirection:'column',
+        alignItems:'center', justifyContent:'center', gap:20,
+        background:'linear-gradient(162deg,#071a18 0%,#050f0e 55%,#020a08 100%)',
+        padding:32, fontFamily:'Georgia,serif',
+      }}>
+        <div style={{fontSize:48}}>🐚</div>
+        <div style={{
+          fontFamily:'Cinzel,serif', fontSize:20, letterSpacing:4,
+          background:'linear-gradient(135deg,#f6e070,#c87c10,#f0b830)',
+          WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+        }}>Something went wrong</div>
+        <p style={{
+          fontFamily:'Crimson Text,serif', fontSize:15, color:'#7a4e18',
+          textAlign:'center', maxWidth:300, lineHeight:1.6, fontStyle:'italic',
+        }}>
+          An unexpected error occurred. Your progress may not be saved.
+        </p>
+        <button
+          onClick={()=>{ this.setState({hasError:false,error:null}); window.location.reload(); }}
+          style={{
+            padding:'12px 36px', borderRadius:30, cursor:'pointer',
+            fontFamily:'Cinzel,serif', fontSize:13, letterSpacing:3,
+            color:'#c8a040', background:'linear-gradient(135deg,rgba(4,42,28,0.96),rgba(4,24,17,0.98))',
+            border:'1.5px solid rgba(160,90,10,0.7)',
+            boxShadow:'0 6px 28px rgba(0,0,0,0.7)',
+          }}
+        >↺ Reload Game</button>
+        {this.state.error && (
+          <details style={{marginTop:8,maxWidth:340}}>
+            <summary style={{fontFamily:'Crimson Text,serif',fontSize:11,color:'rgba(120,80,30,0.5)',cursor:'pointer'}}>
+              Error details
+            </summary>
+            <pre style={{fontSize:10,color:'rgba(200,80,40,0.7)',marginTop:6,overflowX:'auto',maxWidth:340,whiteSpace:'pre-wrap'}}>
+              {this.state.error.message}
+            </pre>
+          </details>
+        )}
+      </div>
+    );
+  }
+}
 
 /* =============================================================
    Fix #15 — VARIABLE NAME LEGEND
@@ -972,7 +1027,9 @@ const _aiB = (board, capAt) => {
     score += board[m];
     return score;
   };
-  return ms.reduce((best, m) => scoreMove(m) > scoreMove(best) ? m : best, ms[0]);
+  // Fix: cache score with move to avoid recomputing scoreMove(best) each iteration
+  const scored = ms.map(m => ({ m, s: scoreMove(m) }));
+  return scored.reduce((best, cur) => cur.s > best.s ? cur : best, scored[0]).m;
 };
 function Cowrie({x,y,w=18,h=13,rotate=0,tint="normal"}) {
   const body  = tint==="lit"?"#e8dfc0":tint==="captured"?"#d4a070":tint==="relay"?"#b0d4b8":"#c8bc9e";
@@ -1556,7 +1613,9 @@ const _aiHard = (board, capAt) => {
     score += board[m]; // tie-break: prefer pits with more shells
     return score;
   };
-  return ms.reduce((best, m) => scoreMove(m) > scoreMove(best) ? m : best, ms[0]);
+  // Fix: cache score with move to avoid recomputing scoreMove(best) each iteration
+  const scored = ms.map(m => ({ m, s: scoreMove(m) }));
+  return scored.reduce((best, cur) => cur.s > best.s ? cur : best, scored[0]).m;
 };
 
 // Medium AI — uses _aiHard's full relay-chain scoring then picks randomly from the
@@ -1656,9 +1715,9 @@ function Pallankuzhi() {
   const [aiThinking, setAiThinking] = useState(false); // shows "AI thinking" dots
   const [fbUser, setFbUser] = useState(window._fbuser || null);
   const [userStats, setUserStats] = useState({wins:0,losses:0,draws:0});
-  // Fix: initialize authLoading to true so the sign-in button does not flash on mobile
-  // redirect return — onAuthStateChanged will set it false once Firebase resolves the session.
-  const [authLoading, setAuthLoading] = useState(()=>!!window._fbauth?.currentUser===false && !window._fbuser ? true : false);
+  // With popup sign-in (no redirect), authLoading starts false — no session to await on load.
+  // It is set true only when the user taps Sign In, and cleared by onAuthStateChanged or catch.
+  const [authLoading, setAuthLoading] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showInGameProfile, setShowInGameProfile] = useState(false);
 
@@ -1728,17 +1787,11 @@ function Pallankuzhi() {
   const [showThemePicker, setShowThemePicker] = useState(false);
 
   useEffect(()=>{
-    window._onAuthChange = (user, fromRedirect) => {
+    window._onAuthChange = (user) => {
       setFbUser(user);
       setAuthLoading(false);
       if(!user) {
-        // User signed out — peer/match cleanup is handled by the unmount effect.
-        // introStep is already set to 0 by signOut(); nothing else needed here.
         return;
-      }
-      if(user && (fromRedirect || window._fbRedirectDone)) {
-        window._fbRedirectDone = false;
-        setIntroStep(2);
       }
       if(user) {
         window._fbdb.ref('users/'+user.uid).on('value', snap=>{
@@ -1787,18 +1840,16 @@ function Pallankuzhi() {
   const signInWithGoogle = ()=>{
     setAuthLoading(true);
     const provider = new firebase.auth.GoogleAuthProvider();
-    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    // Fix: use redirect on mobile (popup gets blocked by Chrome on Android)
-    // authLoading is cleared by _onAuthChange on return; add timeout as safety net
-    if (isNative || isMobile) {
-      window._fbauth.signInWithRedirect(provider);
-      setTimeout(()=>setAuthLoading(false), 10000); // safety: unblock after 10s if redirect fails
-    } else {
-      window._fbauth.signInWithPopup(provider)
-        .catch(()=>setAuthLoading(false))
-        .finally(()=>setAuthLoading(false));
-    }
+    // Fix: signInWithRedirect is broken on GitHub Pages (cross-origin cookie restrictions
+    // prevent the auth session from being passed back from firebaseapp.com to github.io).
+    // Use signInWithPopup universally — it works on both mobile and desktop.
+    window._fbauth.signInWithPopup(provider)
+      .then((result)=>{
+        // Popup succeeded — navigate to mode select screen directly,
+        // since onAuthStateChanged won't carry a fromRedirect flag anymore.
+        if(result && result.user) setIntroStep(2);
+      })
+      .catch(()=>setAuthLoading(false));
   };
 
   const signOut = ()=>{
@@ -2177,10 +2228,14 @@ function Pallankuzhi() {
   },[]);
 
   // ── PeerJS server config ──────────────────────────────────────────────────
-  // Switch from the free public PeerJS cloud server to our self-hosted instance.
-  // Update PEER_HOST to your Railway/Render URL once deployed (without https://).
-  // Leave as null to fall back to the default public PeerJS server (development only).
-  const PEER_HOST = "pallankuzhi-peerjs.up.railway.app"; // ← update this after deploy
+  // Self-hosted PeerJS server on Railway. If this goes down, the code
+  // automatically falls back to the public PeerJS cloud (see _peerWithServerCheck).
+  //
+  // MAINTENANCE: if you redeploy the PeerJS server to a new URL, update PEER_HOST.
+  // Railway dashboard: https://railway.app → pallankuzhi-peerjs project
+  // To self-host locally for dev: npx peer --port 9000 --path /peerjs
+  // Then set PEER_HOST = "localhost" and PEER_CFG.port = 9000, secure: false.
+  const PEER_HOST = "pallankuzhi-peerjs.up.railway.app";
   const PEER_CFG  = {
     host:   PEER_HOST,
     port:   443,
@@ -2423,6 +2478,16 @@ function Pallankuzhi() {
       if(!sfx._introGain && !window._sfxMuted) sfx.startIntro();
     }
   },[introStep]);
+
+  // ── TURN TIMER — defined here (above _endG) so _endG can reference it without
+  // a use-before-define violation. _startTimer stays near its usage below. ──
+  const _stopTimer = useCallback(()=>{
+    if(timerIntervalRef.current){ clearInterval(timerIntervalRef.current); timerIntervalRef.current=null; }
+    setTimerActive(false);
+    setTimerSeconds(30);
+    timerSecondsRef.current = 30;
+  },[]);
+
   const _endG = useCallback((fb,fs)=>{
     _stopTimer();
     const f=[...fs];
@@ -2721,14 +2786,7 @@ function Pallankuzhi() {
     return ()=>{ _rematchRef.current=null; };
   },[reset]);
 
-  // ── TURN TIMER ──
-  const _stopTimer = useCallback(()=>{
-    if(timerIntervalRef.current){ clearInterval(timerIntervalRef.current); timerIntervalRef.current=null; }
-    setTimerActive(false);
-    setTimerSeconds(30);
-    timerSecondsRef.current = 30;
-  },[]);
-
+  // ── TURN TIMER (_stopTimer is defined above _endG; _startTimer and _mountedRef below) ──
   const _mountedRef = useRef(true);
   useEffect(()=>{ _mountedRef.current=true; return ()=>{ _mountedRef.current=false; }; },[]);
 
@@ -3043,22 +3101,11 @@ function Pallankuzhi() {
                     sfx.btnClick();
                     setAuthLoading(true);
                     const provider = new firebase.auth.GoogleAuthProvider();
-                    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                    // Fix: use redirect on mobile (popup gets blocked by Chrome on Android)
-                    if (isNative || isMobile) {
-                      window._fbauth.signInWithRedirect(provider)
-                        .catch((err)=>{
-                          console.error('Redirect failed:', err.code, err.message);
-                          alert('Sign-in error: ' + err.code);
-                          setAuthLoading(false);
-                        });
-                    } else {
-                      window._fbauth.signInWithPopup(provider)
-                        .then((result)=>{ if(result && result.user) setIntroStep(2); })
-                        .catch((err)=>{ console.error('Popup failed:', err.code); })
-                        .finally(()=>setAuthLoading(false));
-                    }
+                    // Fix: use popup universally — redirect breaks on GitHub Pages
+                    window._fbauth.signInWithPopup(provider)
+                      .then((result)=>{ if(result && result.user) setIntroStep(2); })
+                      .catch((err)=>{ console.error('Popup failed:', err.code); setAuthLoading(false); })
+                      .finally(()=>setAuthLoading(false));
                   }}
                   disabled={authLoading}
                   style={{
@@ -5487,7 +5534,11 @@ function Pallankuzhi() {
   );
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<Pallankuzhi />);</script>
+root.render(
+  <ErrorBoundary>
+    <Pallankuzhi />
+  </ErrorBoundary>
+);</script>
 
   <!-- Google AdSense Auto Ads -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6396093401293463" crossorigin="anonymous"></script>
