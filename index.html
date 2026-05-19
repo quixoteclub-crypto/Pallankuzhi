@@ -26,6 +26,11 @@
   <meta property="og:description" content="Play Pallankuzhi — an ancient Tamil board game of sowing and strategy."/>
   <meta property="og:image" content="icons/icon-512.png"/>
   <meta property="og:type" content="website"/>
+  <!-- Fix Bug 4: Added missing og:url — required by Facebook, LinkedIn and most social
+       platforms for correct link preview deduplication and canonical URL resolution.
+       Also added <link rel="canonical"> which serves the same purpose for search engines. -->
+  <meta property="og:url" content="https://quixoteclub.github.io/pallankuzhi/"/>
+  <link rel="canonical" href="https://quixoteclub.github.io/pallankuzhi/"/>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -36,10 +41,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.7.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.7.0/firebase-app-check-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #050f0e; }
@@ -72,7 +77,7 @@
     //   2. Enable App Check enforcement in Firebase Console → App Check.
     firebase.initializeApp({
       apiKey: "AIzaSyDUy1qivPJj7Eq45-C_3sanePJI99YXH6s",
-      authDomain: 'pallankuzhi-53823.firebaseapp.com',
+      authDomain: "pallankuzhi-53823.firebaseapp.com",
       databaseURL: "https://pallankuzhi-53823-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "pallankuzhi-53823",
       storageBucket: "pallankuzhi-53823.firebasestorage.app",
@@ -274,8 +279,9 @@ class ErrorBoundary extends React.Component {
      _turnRef      → live ref mirror of turn
      _overRef      → live ref mirror of over
      _shellCountRef → live ref mirror of shellCount
-     _remoteMoveRef → ref-based callback replacing window._onlineRemoteMove
-     _rematchRef   → ref-based callback replacing window._onlineRematch
+     _remoteMoveRef      → ref-based callback replacing window._onlineRemoteMove
+     _rematchRef         → ref-based callback replacing window._onlineRematch
+     _onEmojiReceivedRef → ref-based callback replacing window._onEmojiReceived (Fix Bug 3)
      _prevAutoOrient → ref tracking last orientation to detect true flips
    =============================================================
 */
@@ -1840,16 +1846,23 @@ function Pallankuzhi() {
   const signInWithGoogle = ()=>{
     setAuthLoading(true);
     const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     // Fix: signInWithRedirect is broken on GitHub Pages (cross-origin cookie restrictions
     // prevent the auth session from being passed back from firebaseapp.com to github.io).
     // Use signInWithPopup universally — it works on both mobile and desktop.
+    // Note: Firebase compat SDK v10 auto-falls-back to redirect on mobile if it thinks
+    // the popup will be blocked. We prevent this by calling signInWithPopup only from
+    // a direct user gesture (onClick), which guarantees the browser allows the popup.
     window._fbauth.signInWithPopup(provider)
       .then((result)=>{
         // Popup succeeded — navigate to mode select screen directly,
         // since onAuthStateChanged won't carry a fromRedirect flag anymore.
         if(result && result.user) setIntroStep(2);
       })
-      .catch(()=>setAuthLoading(false));
+      .catch((err)=>{
+        console.error('[Auth] Popup error:', err.code, err.message);
+        setAuthLoading(false);
+      });
   };
 
   const signOut = ()=>{
@@ -2001,8 +2014,13 @@ function Pallankuzhi() {
   const scoreRefs = useRef({0: null, 1: null});
   // Fix #14: use React refs for PeerJS callbacks instead of window globals
   // This avoids polluting the global namespace and makes testing cleaner.
-  const _remoteMoveRef  = useRef(null);
-  const _rematchRef     = useRef(null);
+  const _remoteMoveRef      = useRef(null);
+  const _rematchRef         = useRef(null);
+  // Fix Bug 3: replace window._onEmojiReceived global with a ref — same pattern as
+  // _remoteMoveRef. Using a window global is fragile because if two game instances
+  // ever share a tab context the callbacks cross-wire. A ref is scoped to this
+  // component instance and gets cleaned up automatically when it unmounts.
+  const _onEmojiReceivedRef = useRef(null);
   // Fix #3: live refs so window._onlineRemoteMove always reads current values,
   // not stale closure captures from its useEffect registration render.
   const _boardRef      = useRef(null);
@@ -2168,7 +2186,7 @@ function Pallankuzhi() {
         setTurn(0);
         _rematchRef.current && _rematchRef.current();
       } else if(data.type==="emoji"){
-        if(window._onEmojiReceived) window._onEmojiReceived(data.emoji);
+        if(_onEmojiReceivedRef.current) _onEmojiReceivedRef.current(data.emoji);
       } else if(data.type==="resign"){
         // Fix #22 + Fix #32: stop any running animation before showing result,
         // otherwise the animation timer fires on top of the win overlay.
@@ -2324,10 +2342,10 @@ function Pallankuzhi() {
       }
     );
     peerRef.current = peer;
-    peer.on("open",()=>{
-      const conn = peer.connect("palla-"+sanitized);
-      _wireConn(conn,"guest",sc);
-    });
+    // Fix Bug 1: Removed redundant peer.on("open") block that was creating a second
+    // PeerJS connection to the host. The connection is already made inside
+    // _peerWithServerCheck's onReady callback above — doing it again here caused
+    // two simultaneous connections, wasting bandwidth and risking race conditions.
     peer.on("error",()=>{ setOnlineStep("error"); setOnlineStatus("Room not found: "+sanitized+". Check the code."); });
     // 30-second timeout — if connection never opens, show an error
     roomTimeoutRef.current = setTimeout(()=>{
@@ -2912,7 +2930,19 @@ function Pallankuzhi() {
       const entries=[];
       snap.forEach(child=>{
         const d=child.val();
-        entries.push({uid:child.key, name:d.name||"Player", wins:d.wins||0, losses:d.losses||0, coins:d.coins||0, photo:d.photo||null, xp:d.xp||0});
+        // Fix Bug 2: Only store fields actually needed for display. Previously uid, coins,
+        // and raw xp were all pulled into state, exposing every user's financial and XP data
+        // to any authenticated viewer. Now: level is pre-computed from xp (raw xp dropped),
+        // coins is omitted entirely, and uid is replaced with isSelf (boolean) so the
+        // current user's row can still be highlighted without storing anyone else's uid.
+        entries.push({
+          isSelf: !!(window._fbuser && child.key === window._fbuser.uid),
+          name: d.name||"Player",
+          wins: d.wins||0,
+          losses: d.losses||0,
+          level: getLevelFromXp(d.xp||0),
+          photo: d.photo||null,
+        });
       });
       setLeaderboardData(entries.reverse());
       setLeaderboardLoading(false);
@@ -2933,16 +2963,15 @@ function Pallankuzhi() {
     setTimeout(()=>setFloatingEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
   },[]);
 
-  // Handle incoming emoji from opponent
-  // Attach to _wireConn data handler — we patch conn.on("data") events for emoji here
-  // via a global hook since _wireConn is called before emoji state is available
+  // Handle incoming emoji from opponent — use a ref instead of a window global
+  // so this callback is scoped to this component instance (Fix Bug 3).
   useEffect(()=>{
-    window._onEmojiReceived = (emoji)=>{
+    _onEmojiReceivedRef.current = (emoji)=>{
       const id = _emojiId.current++;
       setFloatingEmojis(prev=>[...prev,{id,emoji,own:false}]);
       setTimeout(()=>setFloatingEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
     };
-    return ()=>{ window._onEmojiReceived=null; };
+    return ()=>{ _onEmojiReceivedRef.current=null; };
   },[]);
   const _ac   =[7,8,9,10,11,12,13];
   const _theme = THEMES[boardTheme] || THEMES.classic;
@@ -3101,10 +3130,11 @@ function Pallankuzhi() {
                     sfx.btnClick();
                     setAuthLoading(true);
                     const provider = new firebase.auth.GoogleAuthProvider();
+                    provider.setCustomParameters({ prompt: 'select_account' });
                     // Fix: use popup universally — redirect breaks on GitHub Pages
                     window._fbauth.signInWithPopup(provider)
                       .then((result)=>{ if(result && result.user) setIntroStep(2); })
-                      .catch((err)=>{ console.error('Popup failed:', err.code); setAuthLoading(false); })
+                      .catch((err)=>{ console.error('[Auth] Popup error:', err.code, err.message); setAuthLoading(false); })
                       .finally(()=>setAuthLoading(false));
                   }}
                   disabled={authLoading}
@@ -5266,16 +5296,18 @@ function Pallankuzhi() {
             ):(
               <div style={{padding:"8px 0"}}>
                 {leaderboardData.map((p,i)=>(
-                  <div key={p.uid} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 20px",background:p.uid===fbUser?.uid?"rgba(200,140,10,0.12)":"transparent",borderLeft:p.uid===fbUser?.uid?"3px solid #c8a040":"3px solid transparent"}}>
+                  // Fix Bug 2: use p.isSelf (boolean) instead of p.uid===fbUser?.uid,
+                  // and p.level (pre-computed int) instead of getLevelFromXp(p.xp).
+                  // Coins removed — no need to display other users' coin balances.
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 20px",background:p.isSelf?"rgba(200,140,10,0.12)":"transparent",borderLeft:p.isSelf?"3px solid #c8a040":"3px solid transparent"}}>
                     <div style={{width:28,fontFamily:"Cinzel,serif",fontSize:13,fontWeight:700,color:i===0?"#ffe040":i===1?"#c0c0c0":i===2?"#cd7f32":"#80c8a8",textAlign:"center",flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
                     {p.photo?<img src={p.photo} style={{width:32,height:32,borderRadius:"50%",border:"2px solid rgba(160,90,10,0.5)",flexShrink:0}} alt=""/>:<div style={{width:32,height:32,borderRadius:"50%",background:"rgba(30,140,100,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>👤</div>}
                     <div style={{flex:1}}>
                       <div style={{fontFamily:"Cinzel,serif",fontSize:12,color:"#c8a040",letterSpacing:1,display:"flex",alignItems:"center",gap:6}}>
                         {(p.name||"Player").split(" ")[0]}
-                        {p.xp>0&&<span style={{fontSize:9,color:"#c090ff",background:"rgba(80,40,160,0.2)",border:"1px solid rgba(140,80,220,0.4)",borderRadius:10,padding:"1px 5px",letterSpacing:1}}>Lv{getLevelFromXp(p.xp)}</span>}
-                        {getLevelFromXp(p.xp)>=50&&<span style={{fontSize:9,color:"#ffe040",letterSpacing:1}}>👑</span>}
+                        {p.level>0&&<span style={{fontSize:9,color:"#c090ff",background:"rgba(80,40,160,0.2)",border:"1px solid rgba(140,80,220,0.4)",borderRadius:10,padding:"1px 5px",letterSpacing:1}}>Lv{p.level}</span>}
+                        {p.level>=50&&<span style={{fontSize:9,color:"#ffe040",letterSpacing:1}}>👑</span>}
                       </div>
-                      <div style={{fontFamily:"Crimson Text,serif",fontSize:11,color:"#80c8a8"}}>🪙 {p.coins||0} coins</div>
                     </div>
                     <div style={{textAlign:"right",minWidth:48}}>
                       <div style={{fontFamily:"Cinzel,serif",fontSize:14,fontWeight:700,color:"#60e090"}}>{p.wins}</div>
