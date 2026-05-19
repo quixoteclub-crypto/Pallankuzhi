@@ -550,6 +550,17 @@ function _ca() {
 }
 window._sfxMuted = false;
 const sfx = _ca();
+
+// ── Mobile vibration helper ──────────────────────────────────────────────────
+// Silently no-ops on browsers/devices that don't support the Vibration API.
+const vibe = {
+  tap:     ()=>{ try{ navigator.vibrate &&  navigator.vibrate(12);  }catch(e){} },
+  capture: ()=>{ try{ navigator.vibrate && navigator.vibrate([18,8,18]); }catch(e){} },
+  win:     ()=>{ try{ navigator.vibrate && navigator.vibrate([40,20,80,20,120]); }catch(e){} },
+  lose:    ()=>{ try{ navigator.vibrate && navigator.vibrate([60,20,60]); }catch(e){} },
+  relay:   ()=>{ try{ navigator.vibrate && navigator.vibrate([10,6,10,6,10]); }catch(e){} },
+  btn:     ()=>{ try{ navigator.vibrate && navigator.vibrate(8); }catch(e){} },
+};
 function _FS({ events }) {
   return (
     <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:300 }}>
@@ -1607,6 +1618,24 @@ function Pallankuzhi() {
   const [tutHighlight,   setTutHighlight]   = useState(null);// highlighted pit index
   const [tutCapture,     setTutCapture]     = useState(null);// captured pit flash
   const [tutRelay,       setTutRelay]       = useState(null);// relay pit flash
+  // ── AUTO-TUTORIAL: auto-open on first ever visit ──────────────────────────
+  // We fire once when the player reaches introStep 1 (How to Play screen) for the first time.
+  // A 2-second delay lets the screen finish its fade-in before the modal appears.
+  const _autoTutFired = useRef(false);
+  useEffect(()=>{
+    if(introStep !== 1) return;
+    if(_autoTutFired.current) return;
+    _autoTutFired.current = true;
+    const hasCompleted = localStorage.getItem("pallankuzhi_tutorial_completed");
+    if(!hasCompleted && !showTutorial){
+      const t = setTimeout(()=>{
+        setShowTutorial(true);
+        setTutStep(0);
+      }, 2000);
+      return ()=>clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[introStep]);
   const [waitingCount,  setWaitingCount]  = useState(0); // players currently in matchmaking queue
   const peerRef    = useRef(null);
   const roomTimeoutRef = useRef(null);
@@ -1624,6 +1653,7 @@ function Pallankuzhi() {
   const [orient, setOrient] = useState(null); // null=auto, "portrait", "landscape"
   const [muteAudio, setMuteAudio] = useState(false);
   const [aiDifficulty, setAiDifficulty] = useState("medium"); // "easy" | "medium" | "hard"
+  const [aiThinking, setAiThinking] = useState(false); // shows "AI thinking" dots
   const [fbUser, setFbUser] = useState(window._fbuser || null);
   const [userStats, setUserStats] = useState({wins:0,losses:0,draws:0});
   // Fix: initialize authLoading to true so the sign-in button does not flash on mobile
@@ -2434,7 +2464,7 @@ function Pallankuzhi() {
     setResult(f[0]>f[1]?"win":f[0]<f[1]?"lose":"draw");
     announce(`Game over. ${f[0]>f[1]?`${p1n} wins with ${f[0]} shells`:f[0]<f[1]?`${p2n} wins with ${f[1]} shells`:`Draw`}.`);
     setHandAnim({pit:null,pose:"hover",player:0});
-    if(f[0]>f[1]) sfx.win(); else if(f[0]<f[1]) sfx.lose(); else sfx.draw();
+    if(f[0]>f[1]) { sfx.win(); vibe.win(); } else if(f[0]<f[1]) { sfx.lose(); vibe.lose(); } else sfx.draw();
   },[announce,gameMode,_stopTimer]);
   const _finT = useCallback((fb, fs, player) => {
     const nxt = player === 0 ? 1 : 0;
@@ -2558,6 +2588,7 @@ function Pallankuzhi() {
         setHandAnim({pit:s.pit, pose:"pinch", player});
         _llp.current = s.pit;
         sfx.relay();
+        vibe.relay();
       } else if(s.type === "capture"){
         setAnim({lit:null, cap:s.pit, relay:null});
         const _isOnlineCapture = gameMode === "online" || gameMode === "matchmaking";
@@ -2566,6 +2597,7 @@ function Pallankuzhi() {
         announce(capMsg);
         setHandAnim({pit:s.pit, pose:"scoop", player});
         sfx.capture(s.amount);
+        vibe.capture();
       } else if(s.type === "triple"){
         setAnim({lit:null, cap:s.pit, relay:null});
         const tripleOwner = s.owner;
@@ -2624,6 +2656,7 @@ function Pallankuzhi() {
       sendOnlineMove(ci, last.board, resultScores);
     }
     announce(`Picked pit ${ci+1} with ${board[ci]} shells.`);
+    vibe.tap();
     _rA(steps,board,scores,player,_rm);
   },[board,scores,shellCount,over,turn,_rA,announce,_rm,gameMode,sendOnlineMove]);
 
@@ -2777,7 +2810,9 @@ function Pallankuzhi() {
     if(turn!==1||_br.current||over) return;
     // Fix #18: vary AI think delay — Easy is slower/hesitant, Hard is sharp.
     const aiDelay = aiDifficulty==="hard" ? 300 : aiDifficulty==="medium" ? 500 + Math.random()*200 : 750 + Math.random()*400;
+    setAiThinking(true);
     const t=setTimeout(()=>{
+      setAiThinking(false);
       if(_br.current||onlineRole!==null) return;
       const capAt2 = shellCount===6?3:shellCount===12?6:12;
       const m = aiDifficulty==="hard" ? _aiHard(board, capAt2) : aiDifficulty==="medium" ? _aiMedium(board, capAt2) : _aiB(board, capAt2);
@@ -2790,7 +2825,7 @@ function Pallankuzhi() {
       if(_cf!==null) _fc.current[_cf].add(1);
       _rA(steps,board,scores,1,_rm);
     },aiDelay);
-    return ()=>clearTimeout(t);
+    return ()=>{ clearTimeout(t); setAiThinking(false); };
   },[gameMode,onlineRole,turn,board,scores,over,shellCount,_rA,_finT,_rm,aiDifficulty]);
 
   const fullReset = useCallback(()=>{
@@ -3358,7 +3393,7 @@ function Pallankuzhi() {
         },[tutStarted]);
 
         const nextStep = ()=>{ stopSpeech(); if(autoRef.current) clearTimeout(autoRef.current); goStep(step+1); };
-        const closeTut = ()=>{ stopSpeech(); if(autoRef.current) clearTimeout(autoRef.current); setShowTutorial(false); setTutStep(0); };
+        const closeTut = ()=>{ stopSpeech(); if(autoRef.current) clearTimeout(autoRef.current); localStorage.setItem("pallankuzhi_tutorial_completed","true"); setShowTutorial(false); setTutStep(0); };
 
         const onPitTap = (idx)=>{
           if(!waitTap) return;
@@ -3797,7 +3832,7 @@ function Pallankuzhi() {
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,marginTop:12,animation:"introFadeIn 0.6s 0.35s both",position:"relative",zIndex:1}}>
               {/* Tutorial CTA — prominent, above the Play button */}
               <button
-                onClick={()=>{ sfx.btnClick(); setTutStep(0); setShowTutorial(true); }}
+                onClick={()=>{ sfx.btnClick(); vibe.btn(); setTutStep(0); setShowTutorial(true); }}
                 style={{
                   padding:"14px 44px",borderRadius:30,
                   fontFamily:"Cinzel,serif",fontSize:14,letterSpacing:3,textTransform:"uppercase",
@@ -4629,6 +4664,19 @@ function Pallankuzhi() {
             display:"inline-block",whiteSpace:"nowrap",
             animation:tripleFlash[1]?"pulse 0.3s ease":turn===1&&!over?"pulse 1.2s infinite":"none",
           }}>{gameMode==="pvp"?"P2":(gameMode==="online"||gameMode==="matchmaking")?"OPP":"AI"}: {scores[1]}</span>
+          {/* AI thinking dots */}
+          {aiThinking && gameMode==="ai" && (
+            <div style={{display:"flex",gap:2,alignItems:"center",justifyContent:"center",
+              writingMode:"horizontal-tb",transform:"none",marginTop:2}}>
+              {[0,1,2].map(i=>(
+                <div key={i} style={{
+                  width:4,height:4,borderRadius:"50%",
+                  background:"#c8a040",opacity:0.9,
+                  animation:`pulse ${0.5+i*0.15}s ease-in-out infinite`,
+                }}/>
+              ))}
+            </div>
+          )}
         </div>
         {/* Reset button — hidden mid-game in online/matchmaking to prevent desync */}
         {(gameMode!=="online"&&gameMode!=="matchmaking")||(over) ? (
